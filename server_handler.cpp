@@ -11,9 +11,6 @@
 
 
 
-// std::unordered_map<int, Packet> packet_handler;
-// std::unordered_set<player> players;
-
 std::unique_ptr<Packet> (*packetFactory[256])() = {nullptr};
 
 void setupPacketFactory() {
@@ -58,7 +55,7 @@ void sendPacket(Packet* packet, SOCKET playerSocket) {
 
     // dummy byte, for some reason minecraft drops one byte (which would completely mess up the way it was read) despite WSASend confirming the correct amount of bytes sent
     // The fact that I am writing this,  despite knowing this project wont be shared, it would provide insight to the levels of frustrations.
-    // But if you are not the future me and is someone who just happened to come across this file, this line code is worth an ungodly amount of time.
+    // But if you are not the future me and is someone who just happened to come across this file, this single line of code contains days of agony
     packetBuffer->writeByte(0);
 
 

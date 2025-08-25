@@ -5,7 +5,7 @@
 #ifndef MINECRAFTSERVER_SERVER_CONNECTION_H
 #define MINECRAFTSERVER_SERVER_CONNECTION_H
 
-
+// Linux implementation will come later, maybe when I have a spare laptop or this project is near complete.
 #include <winsock2.h>
 #include "concurrent_unordered_set.h"
 #include "packet_buf.h"

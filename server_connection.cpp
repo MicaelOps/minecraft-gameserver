@@ -19,8 +19,8 @@ namespace {
 }
 
 
-enum CONNECTION_CONTEXT_TYPE {
-    ACCEPT, RECEIVE, SEND
+enum class CONNECTION_CONTEXT_TYPE : unsigned int {
+    ACCEPT = 3, RECEIVE = 4, SEND =5
 };
 struct IO_SERVER_CONNECTION_THREAD_PARAM {
     SOCKET listenSocket;
@@ -39,7 +39,7 @@ struct PLAYER_CONNECTION_CONTEXT {
     }
 
     SOCKET playerSocket = INVALID_SOCKET;
-    CONNECTION_CONTEXT_TYPE type = ACCEPT;
+    CONNECTION_CONTEXT_TYPE type = CONNECTION_CONTEXT_TYPE::ACCEPT;
     OVERLAPPED overlapped {};
     WSABUF buffer{};
 };
@@ -78,7 +78,7 @@ bool sendDataToConnection(PacketBuffer* buffer, SOCKET socket) {
     SecureZeroMemory(connection_context, sizeof(PLAYER_CONNECTION_CONTEXT));
 
     connection_context->playerSocket = socket;
-    connection_context->type = SEND;
+    connection_context->type = CONNECTION_CONTEXT_TYPE::SEND;
 
     connection_context->buffer.buf = buffer->getBuffer();
     connection_context->buffer.len = buffer->getSize();
@@ -111,7 +111,7 @@ bool readPacket(PLAYER_CONNECTION_CONTEXT* context) {
     SecureZeroMemory(connection_context, sizeof(PLAYER_CONNECTION_CONTEXT));
 
     connection_context->playerSocket = context->playerSocket;
-    connection_context->type = RECEIVE;
+    connection_context->type = CONNECTION_CONTEXT_TYPE::RECEIVE;
 
     connection_context->buffer.len = 512;
     connection_context->buffer.buf = new char[512];
@@ -182,7 +182,7 @@ DWORD WINAPI  SocketCompletionThreadFunction(LPVOID param) {
         PLAYER_CONNECTION_CONTEXT* connectionContext = CONTAINING_RECORD(Overlapped, PLAYER_CONNECTION_CONTEXT, overlapped);
 
 
-        if(connectionContext->type == ACCEPT)  {
+        if(connectionContext->type == CONNECTION_CONTEXT_TYPE::ACCEPT)  {
 
             setsockopt(connectionContext->playerSocket,
                        SOL_SOCKET,
@@ -193,7 +193,7 @@ DWORD WINAPI  SocketCompletionThreadFunction(LPVOID param) {
 
             connections.insert(connectionContext->playerSocket);
 
-        } else if(connectionContext->type == RECEIVE)  {
+        } else if(connectionContext->type == CONNECTION_CONTEXT_TYPE::RECEIVE)  {
 
             if(NumBytesSent > 0)
                 proccessPacket(connectionContext, NumBytesSent);
@@ -201,7 +201,7 @@ DWORD WINAPI  SocketCompletionThreadFunction(LPVOID param) {
         }
 
 
-        if(connectionContext->type != SEND) {
+        if(connectionContext->type != CONNECTION_CONTEXT_TYPE::SEND) {
             result = readPacket(connectionContext);
 
             if(!result) {
@@ -253,7 +253,7 @@ bool acceptConnection(const SOCKET listenSocket, HANDLE port) {
         }
     }
 
-    connection_context->type = ACCEPT;
+    connection_context->type = CONNECTION_CONTEXT_TYPE::ACCEPT;
     connection_context->playerSocket = AcceptSocket;
 
     HANDLE acceptPort = CreateIoCompletionPort((HANDLE) AcceptSocket, port, (u_long) 0, 0);
@@ -347,17 +347,17 @@ bool startupServerNetwork() {
     return true;
 }
 
-void closeServerSocket( ) {
-
+void closeServerSocket() {
     connections.for_each([](SOCKET socket) {
         closeConnection(socket);
     });
+
 
     PostQueuedCompletionStatus(listenPort, 0, SHUTDOWN_KEY, nullptr);
 
     printInfo("Waiting to clear network worker...");
 
-    Sleep(3000); // Let all the thread shutdown
+    Sleep(3000); // Let all the connections shutdown
 
     CloseHandle(listenPort);
     WSACleanup();

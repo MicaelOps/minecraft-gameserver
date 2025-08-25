@@ -6,7 +6,7 @@
 #define MINECRAFTSERVER_PLAYER_H
 
 
-class player {
+class Player {
 
 };
 

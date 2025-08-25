@@ -25,8 +25,12 @@ class concurrent_unordered_set {
 template<typename Type>
 template<typename Func>
 void concurrent_unordered_set<Type>::for_each(Func func) {
-    std::lock_guard<std::mutex> lock(setMutex);
-    for (const auto &item: original_set) {
+    std::unordered_set<Type> snapshot;
+    {
+        std::lock_guard<std::mutex> lock(setMutex);
+        snapshot = original_set;
+    }
+    for (const auto& item : snapshot) {
         func(item);
     }
 }
