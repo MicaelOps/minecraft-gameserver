@@ -2,6 +2,17 @@
 
 #include <iostream>
 
-void hello() {
-    std::cout << "Hello, World!" << std::endl;
+
+void Minecraft::setMOTD(const std::string &newmotd) {
+    motd = newmotd;
 }
+
+std::string Minecraft::getMOTD() {
+    return motd;
+}
+
+Minecraft &Minecraft::getServer() {
+    static Minecraft instance;
+    return instance;
+}
+

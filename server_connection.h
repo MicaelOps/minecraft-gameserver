@@ -13,8 +13,17 @@
 #pragma comment(lib, "Ws2_32.lib")
 
 
+enum class ConnectionState : unsigned int {
 
-bool sendDataToConnection(PacketBuffer* buffer, SOCKET playerSocket);
+    LOGIN = 0, STATUS = 10, PLAY = 100, HANDSHAKING = 20
+};
+
+struct CONNECTION_INFO {
+    SOCKET playerSocket = INVALID_SOCKET;
+    ConnectionState connectionState = ConnectionState::HANDSHAKING;
+};
+
+bool sendDataToConnection(WritePacketBuffer* buffer, const CONNECTION_INFO* playerSocket);
 
 bool startupServerNetwork();
 

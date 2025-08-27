@@ -9,30 +9,75 @@
 #include <iostream>
 #include <array>
 
-
-const std::array<std::string, 20> colourCodes = {};
 enum class COLOUR : unsigned int {
-
-    BLACK = 0,
-    DARK_BLUE = 1,
-    GREEN = 2,
-    BLUE_GREEN = 3,
-    RED = 4,
-    PURPLE = 5,
-    GOLDEN_YELLOW = 6,
-    LIGHT_GRAY = 7,
-    DARK_GRAY = 8,
-    BLUE = 9,
-    LIGHT_GREEN = 10, //A
-    ELECTRIC_BLUE = 11,
-    CRIMSON = 12,
-    PINK = 13,
-    YELLOW = 14;
-
-    std::string getColour() {
-
-    }
+    BLACK,
+    DARK_BLUE,
+    DARK_GREEN,
+    DARK_AQUA,
+    DARK_RED,
+    DARK_PURPLE,
+    GOLD,
+    GRAY,
+    DARK_GRAY,
+    BLUE,
+    GREEN,
+    AQUA,
+    RED,
+    LIGHT_PURPLE,
+    YELLOW,
+    WHITE,
+    MINECOIN_GOLD,
+    MATERIAL_QUARTZ,
+    MATERIAL_IRON,
+    MATERIAL_NETHERITE,
+    MATERIAL_REDSTONE,
+    MATERIAL_COPPER,
+    MATERIAL_GOLD,
+    MATERIAL_EMERALD,
+    MATERIAL_DIAMOND,
+    MATERIAL_LAPIS,
+    MATERIAL_AMETHYST,
+    COUNT
 };
+constexpr std::array<std::string_view, static_cast<size_t>(COLOUR::COUNT)> colourCodes = {
+        "§0", // BLACK
+        "§1", // DARK_BLUE
+        "§2", // DARK_GREEN
+        "§3", // DARK_AQUA
+        "§4", // DARK_RED
+        "§5", // DARK_PURPLE
+        "§6", // GOLD
+        "§7", // GRAY
+        "§8", // DARK_GRAY
+        "§9", // BLUE
+        "§a", // GREEN
+        "§b", // AQUA
+        "§c", // RED
+        "§d", // LIGHT_PURPLE
+        "§e", // YELLOW
+        "§f", // WHITE
+        "§g", // MINECOIN_GOLD
+        "§h", // MATERIAL_QUARTZ
+        "§i", // MATERIAL_IRON
+        "§j", // MATERIAL_NETHERITE
+        "§m", // MATERIAL_REDSTONE
+        "§n", // MATERIAL_COPPER
+        "§p", // MATERIAL_GOLD
+        "§q", // MATERIAL_EMERALD
+        "§s", // MATERIAL_DIAMOND
+        "§t", // MATERIAL_LAPIS
+        "§u"  // MATERIAL_AMETHYST
+};
+constexpr std::string_view getColour(const COLOUR colour) {
+
+    auto colourIndex = static_cast<unsigned int>(colour);
+
+    if(colourIndex >= colourCodes.size())
+        return "";
+
+    return colourCodes[colourIndex];
+}
+
 
 // Base case for recursion
 template<typename T>

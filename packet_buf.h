@@ -9,29 +9,8 @@
 #include <string>
 #include <vector>
 
-class PacketBuffer {
 
-public:
-
-    virtual char* getBuffer();
-
-    virtual int getSize();
-
-    virtual int readVarInt();
-
-    virtual void writeVarIntAttheBack(int value);
-
-    virtual void writeVarInt(int value);
-
-    virtual void writeByte(const char& byte);
-
-    virtual void writeShort(const unsigned short& value);
-
-    virtual void writeString(const std::string& value);
-
- };
-
-class ArrayPacketBuffer : public virtual PacketBuffer {
+class ReadPacketBuffer{
 
 private:
     char* buffer;
@@ -39,25 +18,37 @@ private:
 
 public:
 
-    explicit ArrayPacketBuffer(char* buffer, int size) : buffer(buffer) , size(size) {}
+    explicit ReadPacketBuffer(char* buffer, int size) : buffer(buffer) , size(size) {}
 
-    char* getBuffer() override;
-    int getSize() override;
-    int readVarInt() override;
+    char* getBuffer();
+    int getSize() const;
+    int readVarInt();
+    long long int readLong();
 };
 
-class VectorBuffer : public virtual PacketBuffer {
+/**
+ * The PLAYER_CONNECTION_CONTEXT is responsible for deleting the buffer.
+ */
+class WritePacketBuffer {
 
-private:
-    std::vector<char> buffer;
+    char* buffer = new char[1];
+    size_t capacity = 0;
+    size_t currPos = 0;
 
 public:
-    char* getBuffer() override;
-    int getSize() override;
-    void writeVarIntAttheBack(int value) override;
-    void writeVarInt(int value) override;
-    void writeString(const std::string& value)override;
-    void writeByte(const char &byte) override;
+
+
+    char* getBuffer();
+    size_t getSize() const;
+
+    char* moveBufferToNull(); // transfer the ownership of our buffer (to PLAYER_CONNECTION_CONTEXT) so this object can be deleted
+    void reserve(size_t n);
+    void writeVarIntAttheBack(int value);
+    void writeVarInt(int value);
+    void writeString(const std::string& value);
+    void writeByte(const char &byte);
+
+    void writeLong(long long int i);
 };
 
 

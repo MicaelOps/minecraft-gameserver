@@ -17,15 +17,14 @@ private:
 
 public:
 
-    void readFromBuffer(PacketBuffer* packetBuffer) override;
+    void readFromBuffer(ReadPacketBuffer* packetBuffer) override;
 
-    void handlePacket(SOCKET playerSocket) override;
+    void handlePacket(CONNECTION_INFO *connectionInfo) override;
 
-    void writeToBuffer(PacketBuffer* packetBuffer) override;
+    void writeToBuffer(WritePacketBuffer* packetBuffer) override;
 
 
     HandshakePacket() {
-        packetType = SERVER_PACKET;
         protocolVersion =-1;
         port = -1;
         state = -1;

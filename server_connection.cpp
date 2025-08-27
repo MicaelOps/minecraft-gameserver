@@ -20,7 +20,7 @@ namespace {
 
 
 enum class CONNECTION_CONTEXT_TYPE : unsigned int {
-    ACCEPT = 3, RECEIVE = 4, SEND =5
+    ACCEPT , RECEIVE , SEND
 };
 struct IO_SERVER_CONNECTION_THREAD_PARAM {
     SOCKET listenSocket;
@@ -38,7 +38,8 @@ struct PLAYER_CONNECTION_CONTEXT {
         delete[] buffer.buf; // context takes ownership of the buffer
     }
 
-    SOCKET playerSocket = INVALID_SOCKET;
+    CONNECTION_INFO connectionInfo {INVALID_SOCKET, ConnectionState::HANDSHAKING};
+
     CONNECTION_CONTEXT_TYPE type = CONNECTION_CONTEXT_TYPE::ACCEPT;
     OVERLAPPED overlapped {};
     WSABUF buffer{};
@@ -57,41 +58,46 @@ struct PLAYER_CONNECTION_CONTEXT {
  */
 void proccessPacket(PLAYER_CONNECTION_CONTEXT* context, DWORD bytesRead) {
 
-
-
-    std::unique_ptr<PacketBuffer> packetBuffer = std::make_unique<ArrayPacketBuffer>(context->buffer.buf, bytesRead);
+    std::unique_ptr<ReadPacketBuffer> packetBuffer = std::make_unique<ReadPacketBuffer>(context->buffer.buf, bytesRead);
 
     int packetSize = packetBuffer->readVarInt();
+
 
     if(bytesRead < packetSize) {
         printInfo("Need to perform more read to full ready this packet. Packet size: ",  packetSize , " Bytes Read: " , bytesRead);
         return;
     }
-    invokePacket(packetBuffer.get(), context->playerSocket);
+
+    printInfo("Received a packet of ", packetSize , " varIntSize and ", bytesRead,  "  bytes were read");
+
+    invokePacket(packetBuffer.get(), &context->connectionInfo);
 
 }
 
-bool sendDataToConnection(PacketBuffer* buffer, SOCKET socket) {
+bool sendDataToConnection(WritePacketBuffer* buffer, const CONNECTION_INFO* connectionInfo) {
 
     // Setup pOverlapped
-    auto connection_context = new PLAYER_CONNECTION_CONTEXT;
-    SecureZeroMemory(connection_context, sizeof(PLAYER_CONNECTION_CONTEXT));
+    const auto connection_context = new PLAYER_CONNECTION_CONTEXT;
+    SecureZeroMemory(&connection_context->overlapped, sizeof(OVERLAPPED));
 
-    connection_context->playerSocket = socket;
+    connection_context->connectionInfo.playerSocket = connectionInfo->playerSocket;
+    connection_context->connectionInfo.connectionState = connectionInfo->connectionState;
+
     connection_context->type = CONNECTION_CONTEXT_TYPE::SEND;
 
-    connection_context->buffer.buf = buffer->getBuffer();
+    // Transfer ownership of buffer data to context
+    char* packetbuffer = buffer->moveBufferToNull();
+
+    connection_context->buffer.buf = packetbuffer;
     connection_context->buffer.len = buffer->getSize();
 
-
-    int result = WSASend(connection_context->playerSocket,
+    int result = WSASend(connection_context->connectionInfo.playerSocket,
                          &connection_context->buffer,
                          1,
                          nullptr,
                          MSG_OOB,
                          &connection_context->overlapped,
                          nullptr);
-
     if(result == SOCKET_ERROR) {
 
         int error = WSAGetLastError();
@@ -104,13 +110,15 @@ bool sendDataToConnection(PacketBuffer* buffer, SOCKET socket) {
 
     return true;
 }
-bool readPacket(PLAYER_CONNECTION_CONTEXT* context) {
+bool readPacket(const PLAYER_CONNECTION_CONTEXT* context) {
 
-    // Setup pOverlapped
-    auto connection_context = new PLAYER_CONNECTION_CONTEXT;
-    SecureZeroMemory(connection_context, sizeof(PLAYER_CONNECTION_CONTEXT));
+    // Setup pOverlapped;
+    const auto connection_context = new PLAYER_CONNECTION_CONTEXT;
+    SecureZeroMemory(&connection_context->overlapped, sizeof(OVERLAPPED));
 
-    connection_context->playerSocket = context->playerSocket;
+    connection_context->connectionInfo.playerSocket = context->connectionInfo.playerSocket;
+    connection_context->connectionInfo.connectionState = context->connectionInfo.connectionState;
+
     connection_context->type = CONNECTION_CONTEXT_TYPE::RECEIVE;
 
     connection_context->buffer.len = 512;
@@ -118,7 +126,7 @@ bool readPacket(PLAYER_CONNECTION_CONTEXT* context) {
 
     DWORD flags = 0;
     // read the packet length
-    int result = WSARecv(connection_context->playerSocket,
+    int result = WSARecv(connection_context->connectionInfo.playerSocket,
                          &connection_context->buffer,
                          1,
                          nullptr,
@@ -178,20 +186,19 @@ DWORD WINAPI  SocketCompletionThreadFunction(LPVOID param) {
             continue;
         }
 
-
         PLAYER_CONNECTION_CONTEXT* connectionContext = CONTAINING_RECORD(Overlapped, PLAYER_CONNECTION_CONTEXT, overlapped);
 
 
         if(connectionContext->type == CONNECTION_CONTEXT_TYPE::ACCEPT)  {
 
-            setsockopt(connectionContext->playerSocket,
+            setsockopt(connectionContext->connectionInfo.playerSocket,
                        SOL_SOCKET,
                        SO_UPDATE_ACCEPT_CONTEXT,
                        reinterpret_cast<const char *>(params->listenSocket),
                        sizeof(params->listenSocket));
 
 
-            connections.insert(connectionContext->playerSocket);
+            connections.insert(connectionContext->connectionInfo.playerSocket);
 
         } else if(connectionContext->type == CONNECTION_CONTEXT_TYPE::RECEIVE)  {
 
@@ -199,7 +206,6 @@ DWORD WINAPI  SocketCompletionThreadFunction(LPVOID param) {
                 proccessPacket(connectionContext, NumBytesSent);
 
         }
-
 
         if(connectionContext->type != CONNECTION_CONTEXT_TYPE::SEND) {
             result = readPacket(connectionContext);
@@ -210,6 +216,7 @@ DWORD WINAPI  SocketCompletionThreadFunction(LPVOID param) {
         }
 
         delete connectionContext;
+
     }
     return 0;
 }
@@ -227,10 +234,8 @@ bool acceptConnection(const SOCKET listenSocket, HANDLE port) {
     DWORD bytesReceived = 0;
 
     // Setup pOverlapped
-    auto connection_context = new PLAYER_CONNECTION_CONTEXT;
-    SecureZeroMemory(connection_context, sizeof(PLAYER_CONNECTION_CONTEXT));
-
-
+    const auto connection_context = new PLAYER_CONNECTION_CONTEXT;
+    SecureZeroMemory(&connection_context->overlapped, sizeof(OVERLAPPED));
 
     auto result = lpfnAcceptEx(
             listenSocket,
@@ -254,7 +259,7 @@ bool acceptConnection(const SOCKET listenSocket, HANDLE port) {
     }
 
     connection_context->type = CONNECTION_CONTEXT_TYPE::ACCEPT;
-    connection_context->playerSocket = AcceptSocket;
+    connection_context->connectionInfo.playerSocket = AcceptSocket;
 
     HANDLE acceptPort = CreateIoCompletionPort((HANDLE) AcceptSocket, port, (u_long) 0, 0);
 
