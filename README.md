@@ -23,4 +23,12 @@ Future testing:
 - Stress test
 - Vulnerability testing
 
+
+Logs:
+
+28/08/2025
+- I will need at some point to rewrite the network system to allow buffers to be reused otherwise the constant heap allocations of buffers will hinder perfomance.
+- There is a noticeable difference from the first ping to the subsequent pings.
+
+
 Documentation will be added later.
