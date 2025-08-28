@@ -64,13 +64,14 @@ void sendPacket(Packet* packet, const CONNECTION_INFO* connectionInfo) {
     packet->writeToBuffer(packetBuffer.get());
 
     // packet size should be the first varInt to be read
-    packetBuffer->writeVarIntAttheBack(packetBuffer->getSize());
+    packetBuffer->writeVarIntAtTheFront(packetBuffer->getSize());
 
     // dummy byte, for some reason minecraft drops one byte (which would completely mess up the way it was read) despite WSASend confirming the correct amount of bytes sent
     // The fact that I am writing this,  despite knowing this project wont be shared, it would give insights to the levels of frustrations.
     // But if you are not the future me and is someone who just happened to come across this file, this single line of code contains days of agony
     packetBuffer->writeByte(0);
 
+    //printf("Packetd of size %zu being sent. \n ", packetBuffer->getSize());
 
     sendDataToConnection(packetBuffer.get(), connectionInfo);
 

@@ -86,7 +86,7 @@ void WritePacketBuffer::writeByte(const char& byte) {
     buffer[currPos++] = byte;
 }
 
-void WritePacketBuffer::writeVarIntAttheBack(int value) {
+void WritePacketBuffer::writeVarIntAtTheFront(int value) {
     // Determine the number of bytes needed for the VarInt
     size_t varIntSize = 0;
     int temp = value;

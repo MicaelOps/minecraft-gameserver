@@ -17,5 +17,6 @@ void PingPongPacket::handlePacket(CONNECTION_INFO* connectionInfo) {
 }
 
 void PingPongPacket::writeToBuffer(WritePacketBuffer *packetBuffer) {
+    packetBuffer->writeVarInt(1); // packet id
     packetBuffer->writeLong(ping);
 }

@@ -95,7 +95,7 @@ bool sendDataToConnection(WritePacketBuffer* buffer, const CONNECTION_INFO* conn
                          &connection_context->buffer,
                          1,
                          nullptr,
-                         MSG_OOB,
+                         0,
                          &connection_context->overlapped,
                          nullptr);
     if(result == SOCKET_ERROR) {

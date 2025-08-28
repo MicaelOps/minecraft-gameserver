@@ -43,7 +43,7 @@ public:
 
     char* moveBufferToNull(); // transfer the ownership of our buffer (to PLAYER_CONNECTION_CONTEXT) so this object can be deleted
     void reserve(size_t n);
-    void writeVarIntAttheBack(int value);
+    void writeVarIntAtTheFront(int value);
     void writeVarInt(int value);
     void writeString(const std::string& value);
     void writeByte(const char &byte);
