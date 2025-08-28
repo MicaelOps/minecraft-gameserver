@@ -3,7 +3,7 @@ C++ Minecraft server
 
 A personal learning project to improve c++ expertise. 
 
-This project is the Shared Library that plugins implement.
+This project is the Shared Library that plugins and the executable implement.
 
 C++ Minecraft Server (avg 6ms):
 ![img_2.png](img_2.png)
