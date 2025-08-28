@@ -1,17 +1,24 @@
 # minecraft-gameserver
 C++ Minecraft server
 
-A personal learning project to improve c++ expertise.
+A personal learning project to improve c++ expertise. 
 
 This project is the Shared Library that plugins implement.
+
+C++ Minecraft Server (avg 6ms):
+![img_2.png](img_2.png)
+
+PaperSpigot (avg 2ms):
+![img_1.png](img_1.png)
 
 Main Goals:
 
 - Multithreaded world system
-- Implmenting Plugin system for c++ plugins
+- Plugin system for c++ plugins
 - Learning design patterns applications, networking 
+- Match the performance of PaperSpigot!
 
-Needs & Wants:
+Future testing:
 
 - Stress test
 - Vulnerability testing
