@@ -2,7 +2,6 @@
 // Created by Micael Cossa on 26/07/2025.
 //
 
-#include <unordered_map>
 #include <map>
 #include <memory>
 #include <utility>
@@ -13,11 +12,16 @@
 #include "packets/PingPongPacket.h"
 #include "packets/UndefinedPacket.h"
 #include "packets/ServerQueryPacket.h"
+#include "the_great_freedom_pool.h"
 
 
 using PacketGenerator = std::unique_ptr<Packet>(*)();
 
-std::array<PacketGenerator, 256> packetFactory;
+namespace  {
+    std::array<PacketGenerator, 256> packetFactory;
+    ObjectPool<char*> buffers(40, true, [](){return new char[512];});
+}
+
 
 void setupPacketFactory() {
 
@@ -34,7 +38,6 @@ void invokePacket(ReadPacketBuffer* packetBuffer, CONNECTION_INFO* connectionInf
 
     int packetId = packetBuffer->readVarInt();
 
-    printInfo("Received a packet with id: " , packetId);
 
     if(packetId > 255 || packetId < 0) {
         printInfo("invalid Packet id: ", packetId);
@@ -42,8 +45,13 @@ void invokePacket(ReadPacketBuffer* packetBuffer, CONNECTION_INFO* connectionInf
     }
 
     std::unique_ptr<Packet> packet = packetFactory[std::to_underlying(connectionInfo->connectionState) + packetId]();
+
+
+
     packet->readFromBuffer(packetBuffer);
+
     packet->handlePacket(connectionInfo);
+
 
 }
 
@@ -58,12 +66,11 @@ void invokePacket(ReadPacketBuffer* packetBuffer, CONNECTION_INFO* connectionInf
 void sendPacket(Packet* packet, const CONNECTION_INFO* connectionInfo) {
 
 
-    std::unique_ptr<WritePacketBuffer> packetBuffer = std::make_unique<WritePacketBuffer>();
+    std::unique_ptr<WritePacketBuffer> packetBuffer = std::make_unique<WritePacketBuffer>(buffers.acquire(), 512);
 
-    // writes packet data + packet id
     packet->writeToBuffer(packetBuffer.get());
 
-    // packet size should be the first varInt to be read
+
     packetBuffer->writeVarIntAtTheFront(packetBuffer->getSize());
 
     // dummy byte, for some reason minecraft drops one byte (which would completely mess up the way it was read) despite WSASend confirming the correct amount of bytes sent
@@ -73,6 +80,9 @@ void sendPacket(Packet* packet, const CONNECTION_INFO* connectionInfo) {
 
     //printf("Packetd of size %zu being sent. \n ", packetBuffer->getSize());
 
+
+    // packet size should be the first varInt to be read
     sendDataToConnection(packetBuffer.get(), connectionInfo);
+
 
 }

@@ -21,7 +21,7 @@ private:
 public:
     void readFromBuffer(ReadPacketBuffer* packetBuffer) override;
 
-    void handlePacket(CONNECTION_INFO* connectionInfo) override;
+    void handlePacket( CONNECTION_INFO* connectionInfo) override;
 
     void writeToBuffer(WritePacketBuffer* packetBuffer) override;
 

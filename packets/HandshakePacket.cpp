@@ -10,9 +10,7 @@
 #define PROTOCOL_VERSION_1_8 47
 
 void HandshakePacket::readFromBuffer(ReadPacketBuffer* packetBuffer) {
-
     protocolVersion = packetBuffer->readVarInt();
-    return;
 }
 
 void HandshakePacket::writeToBuffer(WritePacketBuffer* packetBuffer) {
@@ -25,10 +23,6 @@ void HandshakePacket::writeToBuffer(WritePacketBuffer* packetBuffer) {
 }
 
 void HandshakePacket::handlePacket(CONNECTION_INFO *connectionInfo) {
-
-
-
-    printInfo("Protocol version " , protocolVersion);
 
     if(protocolVersion != PROTOCOL_VERSION_1_8) {
         printInfo("A non 1.8.x connection has tried to initiate a handshake..");

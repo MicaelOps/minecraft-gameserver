@@ -31,12 +31,15 @@ public:
  */
 class WritePacketBuffer {
 
-    char* buffer = new char[1];
+    char* buffer = nullptr;
     size_t capacity = 0;
     size_t currPos = 0;
 
 public:
 
+
+    explicit WritePacketBuffer(char*buffer, size_t capacity) : buffer(buffer), capacity(capacity) {
+    }
 
     char* getBuffer();
     size_t getSize() const;

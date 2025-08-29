@@ -3,6 +3,8 @@
 //
 #include "packet_buf.h"
 #include <algorithm>
+#include <chrono>
+#include <iostream>
 
 #define MAXIMUM_VARINT_BITS 5
 #define COMPLETION_BIT_MASK 0x80
@@ -145,15 +147,12 @@ void WritePacketBuffer::writeVarInt(int value) {
 }
 
 void WritePacketBuffer::writeLong(const long long int value) {
-    int sizeOfLong = sizeof(value);
 
-    char longBuffer[sizeOfLong];
 
-    memcpy(longBuffer, &value, sizeOfLong);
+    reserve(currPos + sizeof(value));
+    memcpy(buffer + currPos, &value, sizeof(value));
+    currPos += sizeof(value);
 
-    for(auto byte : longBuffer) {
-        writeByte(byte);
-    }
 }
 
 char *WritePacketBuffer::moveBufferToNull() {

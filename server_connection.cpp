@@ -8,24 +8,15 @@
 #include <ws2tcpip.h>
 #include "server_utils.h"
 #include "server_handler.h"
+#include "the_great_freedom_pool.h"
 
 #define SHUTDOWN_KEY 0x203
 
 #pragma comment(lib, "Ws2_32.lib")
-namespace {
-    LPFN_ACCEPTEX lpfnAcceptEx = nullptr;
-    concurrent_unordered_set<SOCKET> connections;
-    HANDLE listenPort = nullptr;
-}
-
 
 enum class CONNECTION_CONTEXT_TYPE : unsigned int {
     ACCEPT , RECEIVE , SEND
 };
-struct IO_SERVER_CONNECTION_THREAD_PARAM {
-    SOCKET listenSocket;
-};
-
 
 struct PLAYER_CONNECTION_CONTEXT {
 
@@ -43,6 +34,24 @@ struct PLAYER_CONNECTION_CONTEXT {
     CONNECTION_CONTEXT_TYPE type = CONNECTION_CONTEXT_TYPE::ACCEPT;
     OVERLAPPED overlapped {};
     WSABUF buffer{};
+};
+
+
+
+namespace {
+    LPFN_ACCEPTEX lpfnAcceptEx = nullptr;
+    concurrent_unordered_set<SOCKET> connections;
+    HANDLE listenPort = nullptr;
+    ObjectPool<char*> readBuffers(20, false, [](){return new char[512];});
+    ObjectPool<PLAYER_CONNECTION_CONTEXT*> contextpool(30, false, [](){return new PLAYER_CONNECTION_CONTEXT;});
+}
+
+
+
+
+
+struct IO_SERVER_CONNECTION_THREAD_PARAM {
+    SOCKET listenSocket;
 };
 
 /**
@@ -68,16 +77,16 @@ void proccessPacket(PLAYER_CONNECTION_CONTEXT* context, DWORD bytesRead) {
         return;
     }
 
-    printInfo("Received a packet of ", packetSize , " varIntSize and ", bytesRead,  "  bytes were read");
 
     invokePacket(packetBuffer.get(), &context->connectionInfo);
+
 
 }
 
 bool sendDataToConnection(WritePacketBuffer* buffer, const CONNECTION_INFO* connectionInfo) {
 
     // Setup pOverlapped
-    const auto connection_context = new PLAYER_CONNECTION_CONTEXT;
+    const auto connection_context = contextpool.acquire();
     SecureZeroMemory(&connection_context->overlapped, sizeof(OVERLAPPED));
 
     connection_context->connectionInfo.playerSocket = connectionInfo->playerSocket;
@@ -113,7 +122,7 @@ bool sendDataToConnection(WritePacketBuffer* buffer, const CONNECTION_INFO* conn
 bool readPacket(const PLAYER_CONNECTION_CONTEXT* context) {
 
     // Setup pOverlapped;
-    const auto connection_context = new PLAYER_CONNECTION_CONTEXT;
+    const auto connection_context = contextpool.acquire();
     SecureZeroMemory(&connection_context->overlapped, sizeof(OVERLAPPED));
 
     connection_context->connectionInfo.playerSocket = context->connectionInfo.playerSocket;
@@ -122,7 +131,7 @@ bool readPacket(const PLAYER_CONNECTION_CONTEXT* context) {
     connection_context->type = CONNECTION_CONTEXT_TYPE::RECEIVE;
 
     connection_context->buffer.len = 512;
-    connection_context->buffer.buf = new char[512];
+    connection_context->buffer.buf = readBuffers.acquire();
 
     DWORD flags = 0;
     // read the packet length
@@ -197,6 +206,9 @@ DWORD WINAPI  SocketCompletionThreadFunction(LPVOID param) {
                        reinterpret_cast<const char *>(params->listenSocket),
                        sizeof(params->listenSocket));
 
+            // Disable Nagle's algorithm
+            int flag = 1;
+            setsockopt(connectionContext->connectionInfo.playerSocket, IPPROTO_TCP, TCP_NODELAY, (char*)&flag, sizeof(flag));
 
             connections.insert(connectionContext->connectionInfo.playerSocket);
 
@@ -204,6 +216,8 @@ DWORD WINAPI  SocketCompletionThreadFunction(LPVOID param) {
 
             if(NumBytesSent > 0)
                 proccessPacket(connectionContext, NumBytesSent);
+
+            readBuffers.returnToPool(connectionContext->buffer.buf);
 
         }
 
@@ -215,7 +229,7 @@ DWORD WINAPI  SocketCompletionThreadFunction(LPVOID param) {
             }
         }
 
-        delete connectionContext;
+        contextpool.returnToPool(connectionContext);
 
     }
     return 0;
@@ -233,8 +247,9 @@ bool acceptConnection(const SOCKET listenSocket, HANDLE port) {
     char* lpOutputBuf = new char[2 * (sizeof(SOCKADDR_IN)) + 32]; // Must be valid!
     DWORD bytesReceived = 0;
 
+
     // Setup pOverlapped
-    const auto connection_context = new PLAYER_CONNECTION_CONTEXT;
+    const auto connection_context = contextpool.acquire();
     SecureZeroMemory(&connection_context->overlapped, sizeof(OVERLAPPED));
 
     auto result = lpfnAcceptEx(
