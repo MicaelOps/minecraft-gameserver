@@ -5,10 +5,10 @@ A personal learning project to improve c++ expertise.
 
 This project is the Shared Library that plugins and the executable implement.
 
-C++ Minecraft Server (avg 2ms):
+C++ Minecraft Server: (There have been some glorious 0ms)
 ![img_3.png](img_3.png)
 
-PaperSpigot (avg 2ms):
+PaperSpigot:
 ![img_1.png](img_1.png)
 
 Main Goals:
@@ -16,7 +16,7 @@ Main Goals:
 - Multithreaded world system
 - Plugin system for c++ plugins
 - Learning design patterns applications, networking 
-- Match the performance of PaperSpigot!
+- Match the performance of original loaders (spigot,paperspigot,bukkit)!
 
 Future testing:
 
@@ -26,9 +26,12 @@ Future testing:
 
 Logs:
 
+30/08/2025
+- 3rd time is the charm, watched some c++ trading latency conferences and gained inspiration to rewrite the network system again to introduce more modern c++ features like jthreads, std::pmr for contiguous memory blocks for pooled resources and branch predictability.
+
 29/08/2025
 - Introduced the concept of Pooled resources, removed the logging on critical locations like readingPackets which were throttling the speed of the ping packet.
-- GG we now match Paperspigot ping time speed.
+- GG we now match Paperspigot ping latency.
 
 28/08/2025
 - Not moving any further with the minecraft server until the network system is optimised.

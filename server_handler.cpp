@@ -19,7 +19,6 @@ using PacketGenerator = std::unique_ptr<Packet>(*)();
 
 namespace  {
     std::array<PacketGenerator, 256> packetFactory;
-    ObjectPool<char*> buffers(40, true, [](){return new char[512];});
 }
 
 
@@ -66,7 +65,7 @@ void invokePacket(ReadPacketBuffer* packetBuffer, CONNECTION_INFO* connectionInf
 void sendPacket(Packet* packet, const CONNECTION_INFO* connectionInfo) {
 
 
-    std::unique_ptr<WritePacketBuffer> packetBuffer = std::make_unique<WritePacketBuffer>(buffers.acquire(), 512);
+    std::unique_ptr<WritePacketBuffer> packetBuffer = std::make_unique<WritePacketBuffer>(borrowBuffer(), 512);
 
     packet->writeToBuffer(packetBuffer.get());
 

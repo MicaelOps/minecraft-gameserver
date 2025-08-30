@@ -3,7 +3,6 @@
 //
 
 #include "server_connection.h"
-#include <memory>
 #include <mswsock.h>
 #include <ws2tcpip.h>
 #include "server_utils.h"
@@ -14,27 +13,6 @@
 
 #pragma comment(lib, "Ws2_32.lib")
 
-enum class CONNECTION_CONTEXT_TYPE : unsigned int {
-    ACCEPT , RECEIVE , SEND
-};
-
-struct PLAYER_CONNECTION_CONTEXT {
-
-    explicit PLAYER_CONNECTION_CONTEXT() = default;
-
-    PLAYER_CONNECTION_CONTEXT(const PLAYER_CONNECTION_CONTEXT&) = delete;
-    PLAYER_CONNECTION_CONTEXT& operator=(const PLAYER_CONNECTION_CONTEXT&) = delete;
-
-    ~PLAYER_CONNECTION_CONTEXT() {
-        delete[] buffer.buf; // context takes ownership of the buffer
-    }
-
-    CONNECTION_INFO connectionInfo {INVALID_SOCKET, ConnectionState::HANDSHAKING};
-
-    CONNECTION_CONTEXT_TYPE type = CONNECTION_CONTEXT_TYPE::ACCEPT;
-    OVERLAPPED overlapped {};
-    WSABUF buffer{};
-};
 
 
 
@@ -42,7 +20,7 @@ namespace {
     LPFN_ACCEPTEX lpfnAcceptEx = nullptr;
     concurrent_unordered_set<SOCKET> connections;
     HANDLE listenPort = nullptr;
-    ObjectPool<char*> readBuffers(20, false, [](){return new char[512];});
+    ObjectPool<char*> charBuffers(60, false, [](){return new char[512];});
     ObjectPool<PLAYER_CONNECTION_CONTEXT*> contextpool(30, false, [](){return new PLAYER_CONNECTION_CONTEXT;});
 }
 
@@ -53,6 +31,10 @@ namespace {
 struct IO_SERVER_CONNECTION_THREAD_PARAM {
     SOCKET listenSocket;
 };
+
+char* borrowBuffer(){
+    return charBuffers.acquire();
+}
 
 /**
  * Packet format:
@@ -131,7 +113,7 @@ bool readPacket(const PLAYER_CONNECTION_CONTEXT* context) {
     connection_context->type = CONNECTION_CONTEXT_TYPE::RECEIVE;
 
     connection_context->buffer.len = 512;
-    connection_context->buffer.buf = readBuffers.acquire();
+    connection_context->buffer.buf = charBuffers.acquire();
 
     DWORD flags = 0;
     // read the packet length
@@ -197,29 +179,37 @@ DWORD WINAPI  SocketCompletionThreadFunction(LPVOID param) {
 
         PLAYER_CONNECTION_CONTEXT* connectionContext = CONTAINING_RECORD(Overlapped, PLAYER_CONNECTION_CONTEXT, overlapped);
 
+        // Disable Nagle's algorithm
+        int flag = 1;
 
-        if(connectionContext->type == CONNECTION_CONTEXT_TYPE::ACCEPT)  {
+        switch(connectionContext->type ) {
 
-            setsockopt(connectionContext->connectionInfo.playerSocket,
-                       SOL_SOCKET,
-                       SO_UPDATE_ACCEPT_CONTEXT,
-                       reinterpret_cast<const char *>(params->listenSocket),
-                       sizeof(params->listenSocket));
+            case CONNECTION_CONTEXT_TYPE::ACCEPT:
+                setsockopt(connectionContext->connectionInfo.playerSocket,
+                           SOL_SOCKET,
+                           SO_UPDATE_ACCEPT_CONTEXT,
+                           reinterpret_cast<const char *>(params->listenSocket),
+                           sizeof(params->listenSocket));
 
-            // Disable Nagle's algorithm
-            int flag = 1;
-            setsockopt(connectionContext->connectionInfo.playerSocket, IPPROTO_TCP, TCP_NODELAY, (char*)&flag, sizeof(flag));
 
-            connections.insert(connectionContext->connectionInfo.playerSocket);
+                setsockopt(connectionContext->connectionInfo.playerSocket, IPPROTO_TCP, TCP_NODELAY, (char*)&flag, sizeof(flag));
 
-        } else if(connectionContext->type == CONNECTION_CONTEXT_TYPE::RECEIVE)  {
+                connections.insert(connectionContext->connectionInfo.playerSocket);
 
-            if(NumBytesSent > 0)
-                proccessPacket(connectionContext, NumBytesSent);
+                delete[] connectionContext->buffer.buf; // delete lpOutputBuf
 
-            readBuffers.returnToPool(connectionContext->buffer.buf);
+                break;
+            case CONNECTION_CONTEXT_TYPE::RECEIVE:
+                if(NumBytesSent > 0)
+                    proccessPacket(connectionContext, NumBytesSent);
 
+                charBuffers.returnToPool(connectionContext->buffer.buf);
+                break;
+            case CONNECTION_CONTEXT_TYPE::SEND:
+                charBuffers.returnToPool(connectionContext->buffer.buf);
+                break;
         }
+
 
         if(connectionContext->type != CONNECTION_CONTEXT_TYPE::SEND) {
             result = readPacket(connectionContext);
@@ -238,13 +228,13 @@ DWORD WINAPI  SocketCompletionThreadFunction(LPVOID param) {
 
 
 bool acceptConnection(const SOCKET listenSocket, HANDLE port) {
-    SOCKET AcceptSocket = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
+    auto AcceptSocket = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
     if (AcceptSocket == INVALID_SOCKET) {
         printInfo("Create of ListenSocket socket failed with error: ", WSAGetLastError());
         return false;
     }
 
-    char* lpOutputBuf = new char[2 * (sizeof(SOCKADDR_IN)) + 32]; // Must be valid!
+    auto lpOutputBuf = new char[2 * (sizeof(SOCKADDR_IN)) + 32]; // Must be valid!
     DWORD bytesReceived = 0;
 
 
@@ -268,11 +258,12 @@ bool acceptConnection(const SOCKET listenSocket, HANDLE port) {
             std::cerr << "AcceptEx failed immediately: ";
             closesocket(AcceptSocket);
             delete[] lpOutputBuf;
-            delete connection_context;
+            contextpool.returnToPool(connection_context);
             return false;
         }
     }
 
+    connection_context->buffer.buf = lpOutputBuf;
     connection_context->type = CONNECTION_CONTEXT_TYPE::ACCEPT;
     connection_context->connectionInfo.playerSocket = AcceptSocket;
 
@@ -281,9 +272,10 @@ bool acceptConnection(const SOCKET listenSocket, HANDLE port) {
     if (acceptPort == nullptr) {
         printInfo("accept associate failed with error: ",GetLastError());
         delete[] lpOutputBuf;
-        delete connection_context;
+        contextpool.returnToPool(connection_context);
         return false;
     }
+
 
     return true;
 }

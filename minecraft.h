@@ -9,13 +9,19 @@
 #include <memory>
 #include <set>
 
+
+struct SERVER_INFO {
+
+    std::string motd = std::string(getColour(COLOUR::AQUA)).append(getColour(COLOUR::ITALIC)).append("This server uses a C++ Minecraft Server program!");
+    int maxPlayers = 20;
+};
 class Minecraft {
 private:
 
     const std::set<PLUGIN> plugins;
     const concurrent_unordered_set<std::shared_ptr<Player>> players;
 
-    std::string motd = "§b§oThis server uses a C++ Minecraft Server program!";
+    SERVER_INFO info;
 
     // Private constructor prevents external instantiation
     Minecraft() = default;
@@ -29,7 +35,9 @@ public:
 
     static Minecraft& getServer();
 
-    void setMOTD(const std::string& newmotd);
-    std::string getMOTD();
+    void setMOTD(const std::string& newmotd) noexcept;
+
+    std::string getMOTD() const;
+    SERVER_INFO getServerInfo() const;
 };
 #endif //CORE_MINESERVER_MINECRAFT_H

@@ -37,6 +37,12 @@ enum class COLOUR : unsigned int {
     MATERIAL_DIAMOND,
     MATERIAL_LAPIS,
     MATERIAL_AMETHYST,
+    OBFUSCATED,
+    BOLD,
+    STRIKETHROUGH,
+    UNDERLINE,
+    ITALIC,
+    RESET,
     COUNT
 };
 constexpr std::array<std::string_view, static_cast<size_t>(COLOUR::COUNT)> colourCodes = {
@@ -67,6 +73,12 @@ constexpr std::array<std::string_view, static_cast<size_t>(COLOUR::COUNT)> colou
         "§s", // MATERIAL_DIAMOND
         "§t", // MATERIAL_LAPIS
         "§u"  // MATERIAL_AMETHYST
+        "§k"  // OBFUSCATED
+        "§l"  // BOLD
+        "§m"  // STRIKETHROUGH
+        "§n"  // UNDERLINE
+        "§o"  // ITALIC
+        "§r"  // RESET
 };
 constexpr std::string_view getColour(const COLOUR colour) {
 

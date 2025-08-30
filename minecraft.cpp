@@ -4,15 +4,19 @@
 
 
 void Minecraft::setMOTD(const std::string &newmotd) {
-    motd = newmotd;
+    info.motd = newmotd;
 }
 
-std::string Minecraft::getMOTD() {
-    return motd;
+std::string Minecraft::getMOTD() const {
+    return info.motd;
 }
 
 Minecraft &Minecraft::getServer() {
     static Minecraft instance;
     return instance;
+}
+
+SERVER_INFO Minecraft::getServerInfo() const {
+    return info;
 }
 
