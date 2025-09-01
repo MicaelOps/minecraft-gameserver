@@ -1,24 +1,25 @@
 //
 // Created by Micael Cossa on 30/08/2025.
 //
+#include "server_connection.h"
 #include <mswsock.h>
 #include <thread>
 #include <ws2tcpip.h>
 #include <memory_resource>
 #include <utility>
-#import "server_connection.h"
-#import "server_handler.h"
-#import "server_utils.h"
+#include <functional>
+#include "packet_handler.h"
+#include "server_utils.h"
 
 
 struct MEMORY_MANAGER {
-    alignas(64) std::array<std::byte, 2 * 1024 * 1024> contextBuffer;
-    alignas(64) std::array<std::byte, 4 * 1024 * 1024> ioBuffer;
-    alignas(64) std::array<std::byte, 1 * 1024 * 1024> packetBuffer;
+    alignas(64) std::array<std::byte, 2 * 1024 * 1024> contextBuffer{};
+    alignas(64) std::array<std::byte, 4 * 1024 * 1024> ioBuffer{};
+
 
     std::pmr::monotonic_buffer_resource contextUpstream{contextBuffer.data(), contextBuffer.size()};
     std::pmr::monotonic_buffer_resource ioUpstream{ioBuffer.data(), ioBuffer.size()};
-    std::pmr::monotonic_buffer_resource packetUpstream{packetBuffer.data(), packetBuffer.size()};
+
 
     // Pool configurations for pre-allocation
     std::pmr::pool_options contextOptions{
@@ -33,7 +34,6 @@ struct MEMORY_MANAGER {
 
     std::pmr::unsynchronized_pool_resource contextPool{contextOptions, &contextUpstream};
     std::pmr::unsynchronized_pool_resource ioPool{ioOptions, &ioUpstream};
-    std::pmr::unsynchronized_pool_resource packetPool{&packetUpstream};
 
     std::pmr::vector<PLAYER_CONNECTION_CONTEXT*> freeContexts{&contextUpstream};
     std::pmr::vector<std::pair<char*, size_t>> freeIOBuffers{&ioUpstream};
@@ -41,15 +41,15 @@ struct MEMORY_MANAGER {
     void init();
     void preAllocateContexts(size_t count);
     void preAllocateIOBuffers(size_t count);
-    void preAllocatePacketBuffers(size_t count);
 
 
 
-    std::unique_ptr<PLAYER_CONNECTION_CONTEXT> acquireContext();
+
+    PLAYER_CONNECTION_CONTEXT* acquireContext();
     void returnContext(PLAYER_CONNECTION_CONTEXT* connectionContext);
 
-    std::unique_ptr<char[]> acquireBuffer();
-    void releaseBuffer();
+    std::pair<char *, size_t> acquireBuffer();
+    void releaseBuffer(std::pair<char*, size_t> iobuffer);
 
     void reset();
 };
@@ -63,56 +63,40 @@ struct NETWORK_MANAGER {
     HANDLE listenPort = nullptr;
     SOCKET listenSocket = INVALID_SOCKET;
 
-
-    void closeConnection(SOCKET socket) noexcept;
-
-    void startWorkerThreads();
-
-    [[maybe_unused]] bool startNetworkManager(int maxPlayers) noexcept;
-    [[maybe_unused]] void stopNetworkManager() noexcept;
-
-    bool acceptConnection() const noexcept;
 };
 
 
-std::unique_ptr<PLAYER_CONNECTION_CONTEXT> MEMORY_MANAGER::acquireContext() {
+PLAYER_CONNECTION_CONTEXT* MEMORY_MANAGER::acquireContext() {
     if (freeContexts.empty()) return nullptr;
 
     auto* ctx = freeContexts.back();
     freeContexts.pop_back();
 
-    return std::unique_ptr<PLAYER_CONNECTION_CONTEXT>(ctx);
+    return ctx;
 }
+
 
 void MEMORY_MANAGER::returnContext(PLAYER_CONNECTION_CONTEXT* connectionContext) {
     connectionContext->reset();
     freeContexts.push_back(connectionContext);
 }
 
-std::unique_ptr<char[]> MEMORY_MANAGER::acquireBuffer() {
-    constexpr size_t size = 512;
-    void* raw = ioPool.allocate(size, alignof(char));
-    auto* buf = static_cast<char*>(raw);
+std::pair<char*, size_t> MEMORY_MANAGER::acquireBuffer() {
+    if (freeIOBuffers.empty()) return {nullptr, 0};
 
-    // wrap in unique_ptr with custom deleter that returns to pool
-    return std::unique_ptr<char[]>(
-            buf,
-            [this, size](char* p) {
-                if (p) {
-                    ioPool.deallocate(p, size, alignof(char));
-                }
-            }
-    );
+    auto ctx = freeIOBuffers.back();
+    freeIOBuffers.pop_back();
+
+    return ctx;
 }
 
-void MEMORY_MANAGER::releaseBuffer() {
-
+void MEMORY_MANAGER::releaseBuffer(std::pair<char*, size_t> iobuffer) {
+    freeIOBuffers.push_back(iobuffer);
 }
 
 void MEMORY_MANAGER::reset() {
     contextUpstream.release();
     ioUpstream.release();
-    packetUpstream.release();
 }
 
 
@@ -127,16 +111,18 @@ void MEMORY_MANAGER::preAllocateContexts(size_t count) {
         );
 
         // Construct the object to ensure vtables/etc are set up
-        new(ptr) PLAYER_CONNECTION_CONTEXT{&ioPool};
+        new(ptr) PLAYER_CONNECTION_CONTEXT{acquireBuffer()};
         freeContexts.emplace_back(ptr);
     }
 }
 
 void MEMORY_MANAGER::preAllocateIOBuffers(size_t count) {
-    freeIOBuffers.reserve(count);
+
 
     // Pre-allocate common buffer sizes
     constexpr std::array<size_t, 4> COMMON_SIZES = {512, 1024, 4096, 8192};
+
+    freeIOBuffers.reserve(count*COMMON_SIZES.size());
 
     for (size_t size : COMMON_SIZES) {
         for (size_t i = 0; i < count / COMMON_SIZES.size(); ++i) {
@@ -146,36 +132,9 @@ void MEMORY_MANAGER::preAllocateIOBuffers(size_t count) {
     }
 }
 
-void MEMORY_MANAGER::preAllocatePacketBuffers(size_t count) {
-    // For Minecraft packets, pre-allocate based on common packet sizes
-    std::vector<std::pmr::vector<char>*> packets;
-    packets.reserve(count);
-
-    constexpr std::array<size_t, 5> PACKET_SIZES = {
-            64,    // Keep-alive, simple packets
-            256,   // Chat messages
-            512,   // Player movement
-            2048,  // Inventory updates
-            32768  // Chunk data
-    };
-
-    for (size_t size : PACKET_SIZES) {
-        for (size_t i = 0; i < count / PACKET_SIZES.size(); ++i) {
-            auto* packet = std::pmr::polymorphic_allocator<std::pmr::vector<char>>{&packetPool}
-                    .allocate(1);
-
-            new(packet) std::pmr::vector<char>{&packetPool};
-            packet->reserve(size); // Pre-reserve capacity
-
-            packets.push_back(packet);
-        }
-    }
-}
-
 void MEMORY_MANAGER::init() {
-    preAllocateContexts(50);     // 50 connection contexts
     preAllocateIOBuffers(100);   // 100 IO buffers
-    preAllocatePacketBuffers(200); // 200 packet buffers
+    preAllocateContexts(50);     // 50 connection contexts
 }
 
 
@@ -189,18 +148,157 @@ namespace {
 
     constexpr ULONG SHUTDOWN_KEY  = 0x13;
 
+}
 
+// TO BE FIXED -> WHY CHAR* NOT STD::PAIR
+// WRITEPACKETBUFFER NEEDS FIXING!
+char* borrowBuffer() {
+    return memory_manager.acquireBuffer().first;
+}
+
+void proccessPacket(PLAYER_CONNECTION_CONTEXT* context, DWORD bytesRead) {
+
+    std::unique_ptr<ReadPacketBuffer> packetBuffer = std::make_unique<ReadPacketBuffer>(context->buffer.buf, bytesRead);
+
+    int packetSize = packetBuffer->readVarInt();
+
+    if(bytesRead < packetSize) {
+        printInfo("Need to perform more read to full ready this packet. Packet size: ",  packetSize , " Bytes Read: " , bytesRead);
+        return;
+    }
+
+    invokePacket(packetBuffer.get(), context);
+
+}
+
+bool sendDataToConnection(WritePacketBuffer* buffer, PLAYER_CONNECTION_CONTEXT* referenceContext) {
+
+    // Setup pOverlapped
+    auto* connection_context = memory_manager.acquireContext();
+    SecureZeroMemory(&connection_context->overlapped, sizeof(OVERLAPPED));
+
+    connection_context->copy(referenceContext);
+
+
+    // Transfer ownership of buffer data to context
+    char* packetbuffer = buffer->moveBufferToNull();
+
+    connection_context->buffer.buf = packetbuffer;
+    connection_context->buffer.len = buffer->getSize();
+
+    int result = WSASend(connection_context->connectionInfo.playerSocket,
+                         &connection_context->buffer,
+                         1,
+                         nullptr,
+                         0,
+                         &connection_context->overlapped,
+                         nullptr);
+
+    if(result == SOCKET_ERROR && WSAGetLastError() != WSA_IO_PENDING) {
+        printInfo("Unable to send data from socket ", WSAGetLastError());
+        return false;
+    }
+
+    return true;
+}
+bool readPacket(PLAYER_CONNECTION_CONTEXT* context) {
+
+    SecureZeroMemory(&context->overlapped, sizeof(OVERLAPPED));
+    SecureZeroMemory(context->buffer.buf, context->buffer.len); // reset buffer
+
+
+    context->type = CONNECTION_CONTEXT_TYPE::RECEIVE;
+
+    DWORD flags = 0;
+    // read the packet length
+    int result = WSARecv(context->connectionInfo.playerSocket,
+                         &context->buffer,
+                         1,
+                         nullptr,
+                         &flags,
+                         &context->overlapped,
+                         nullptr);
+
+    if(result == SOCKET_ERROR && WSAGetLastError() != WSA_IO_PENDING) {
+        printInfo("Unable to read data from socket ", WSAGetLastError());
+        return false;
+    }
+
+    return true;
 }
 
 
 
-void proccessIOCPCompletion(PLAYER_CONNECTION_CONTEXT* connectionContext, DWORD numberOfBytesTransferred) {
+bool acceptConnection()  noexcept {
 
+    auto AcceptSocket = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
+
+    if (AcceptSocket == INVALID_SOCKET) {
+        printInfo("Create of ListenSocket socket failed with error: ", WSAGetLastError());
+        return false; // nothing has been allocated for cleanup;
+    }
+
+    auto lpOutputBuf = new char[2 * (sizeof(SOCKADDR_IN)) + 32]; // Must be valid!
+    DWORD bytesReceived = 0;
+
+    bool success = false;
+
+    // Prepare Context
+    auto* connection_context = memory_manager.acquireContext();
+    SecureZeroMemory(&connection_context->overlapped, sizeof(OVERLAPPED));
+
+    HANDLE acceptPort;
+
+    auto result = lpfnAcceptEx(
+            networkManager.listenSocket,
+            AcceptSocket,
+            connection_context->buffer.buf,
+            0,
+            sizeof(SOCKADDR_IN) + 16,
+            sizeof(SOCKADDR_IN) + 16,
+            &bytesReceived,
+            &connection_context->overlapped
+    );
+
+
+    if(!result) {
+        if (WSAGetLastError() != ERROR_IO_PENDING) {
+            printInfo("AcceptEx failed");
+            goto error_handling;
+        }
+    }
+
+    connection_context->type = CONNECTION_CONTEXT_TYPE::ACCEPT;
+    connection_context->connectionInfo.playerSocket = AcceptSocket;
+    connection_context->connectionInfo.connectionState = ConnectionState::HANDSHAKING;
+
+
+    acceptPort = CreateIoCompletionPort((HANDLE) AcceptSocket, networkManager.listenPort, (u_long) 0, 0);
+
+    if (acceptPort == nullptr) {
+        printInfo("accept associate failed with error: ",GetLastError());
+        goto error_handling;
+    }
+
+    success = true;
+
+    error_handling:
+        if(!success) {
+            closesocket(AcceptSocket);
+            delete[] lpOutputBuf;
+            memory_manager.returnContext(connection_context);
+        }
+
+    return success;
+}
+
+void proccessIOCPCompletion(PLAYER_CONNECTION_CONTEXT* connectionContext, DWORD numberOfBytesTransferred) {
 
     int flag = 1;
     switch(connectionContext->type ) {
 
         case CONNECTION_CONTEXT_TYPE::ACCEPT:
+
             setsockopt(connectionContext->connectionInfo.playerSocket,
                        SOL_SOCKET,
                        SO_UPDATE_ACCEPT_CONTEXT,
@@ -211,22 +309,20 @@ void proccessIOCPCompletion(PLAYER_CONNECTION_CONTEXT* connectionContext, DWORD 
             setsockopt(connectionContext->connectionInfo.playerSocket, IPPROTO_TCP, TCP_NODELAY, (char*)&flag, sizeof(flag));
 
             networkManager.clientConnections.insert(connectionContext->connectionInfo.playerSocket);
-            networkManager.acceptConnection(); // Accept a new connection
-
-            delete[] connectionContext->buffer.buf; // delete lpOutputBuf
+            //acceptConnection(); // Accept a new connection
 
             break;
         case CONNECTION_CONTEXT_TYPE::RECEIVE:
+
             if(numberOfBytesTransferred > 0)
                 proccessPacket(connectionContext, numberOfBytesTransferred);
 
-            charBuffers.returnToPool(connectionContext->buffer.buf);
             break;
         case CONNECTION_CONTEXT_TYPE::SEND:
-            charBuffers.returnToPool(connectionContext->buffer.buf);
+            memory_manager.returnContext(connectionContext); // send contexts are disposable as they do nothing while read contexts are reusable in the same instance
             break;
         default:
-            std::unreachable();
+            std::unreachable(); // fancy modern c++ function tsk tsk
     }
 
 
@@ -235,15 +331,13 @@ void proccessIOCPCompletion(PLAYER_CONNECTION_CONTEXT* connectionContext, DWORD 
             printInfo("Failed to read packet to connection");
         }
     }
-
-    //memory_manager.returnContext(connectionContext);
 }
+void NETWORK_MANAGER_CONNECTION_WORKER_FUNCTION(const std::stop_token& token, NETWORK_MANAGER& manager, unsigned int threadId) {
 
-void NETWORK_MANAGER_CONNECTION_WORKER_FUNCTION() {
-
-    constexpr unsigned MEMORY_RESET_OPERATION_TRIGGER = 124;
+    constexpr unsigned MEMORY_RESET_OPERATION_TRIGGER = 1000;
     unsigned int operationCount = 0;
     memory_manager.init(); // pre-allocate the contiguous pool
+
 
     while(true) {
 
@@ -275,6 +369,7 @@ void NETWORK_MANAGER_CONNECTION_WORKER_FUNCTION() {
                 continue;
             }
 
+
             auto* context = CONTAINING_RECORD(completion.lpOverlapped, PLAYER_CONNECTION_CONTEXT, overlapped);
             proccessIOCPCompletion(context, completion.dwNumberOfBytesTransferred);
         }
@@ -286,72 +381,19 @@ void NETWORK_MANAGER_CONNECTION_WORKER_FUNCTION() {
     }
 }
 
-bool NETWORK_MANAGER::acceptConnection() const noexcept {
+void startWorkerThreads() {
 
-    auto AcceptSocket = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
+    unsigned int numThreads = std::thread::hardware_concurrency();
+    printInfo("Core Thread count: ", numThreads);
+    networkManager.workers.reserve(numThreads);
 
-    if (AcceptSocket == INVALID_SOCKET) {
-        printInfo("Create of ListenSocket socket failed with error: ", WSAGetLastError());
-        return false; // nothing has been allocated for cleanup;
+    for (int i = 0; i < numThreads; i++) {
+        networkManager.workers.emplace_back(NETWORK_MANAGER_CONNECTION_WORKER_FUNCTION, std::ref(networkManager), i);
     }
-
-    auto lpOutputBuf = new char[2 * (sizeof(SOCKADDR_IN)) + 32]; // Must be valid!
-    DWORD bytesReceived = 0;
-
-    bool success = false;
-
-    // Prepare Context
-    std::unique_ptr<PLAYER_CONNECTION_CONTEXT> connection_context = memory_manager.acquireContext();
-    SecureZeroMemory(&connection_context->overlapped, sizeof(OVERLAPPED));
-
-    HANDLE acceptPort;
-
-    auto result = lpfnAcceptEx(
-            listenSocket,
-            AcceptSocket,
-            lpOutputBuf,
-            0,
-            sizeof(SOCKADDR_IN) + 16,
-            sizeof(SOCKADDR_IN) + 16,
-            &bytesReceived,
-            &connection_context->overlapped
-    );
-
-
-    if(!result) {
-        if (WSAGetLastError() != ERROR_IO_PENDING) {
-            printInfo("AcceptEx failed");
-            goto error_handling;
-        }
-    }
-
-    connection_context->buffer.buf = lpOutputBuf;
-    connection_context->type = CONNECTION_CONTEXT_TYPE::ACCEPT;
-    connection_context->connectionInfo.playerSocket = AcceptSocket;
-
-    acceptPort = CreateIoCompletionPort((HANDLE) AcceptSocket, listenPort, (u_long) 0, 0);
-
-    if (acceptPort == nullptr) {
-        printInfo("accept associate failed with error: ",GetLastError());
-        goto error_handling;
-    }
-
-    success = true;
-    connection_context.release(); // IOCP will handle the deletion.
-
-    error_handling:
-        if(!success) {
-            closesocket(AcceptSocket);
-            delete[] lpOutputBuf;
-            memory_manager.returnContext(connection_context.release());
-        }
-
-    return success;
 }
-
-
-[[maybe_unused]] bool NETWORK_MANAGER::startNetworkManager(int maxPlayers) noexcept {
+[[maybe_unused]] bool startNetworkManager(int maxPlayers) noexcept {
     setupPacketFactory();
+
 
     WSADATA wsadata;
     GUID guidAcceptEx = WSAID_ACCEPTEX;
@@ -368,39 +410,39 @@ bool NETWORK_MANAGER::acceptConnection() const noexcept {
         return false;
     }
 
-    this->listenSocket = WSASocket(AF_INET, SOCK_STREAM, IPPROTO_TCP, nullptr, 0, WSA_FLAG_OVERLAPPED);
+    networkManager.listenSocket = WSASocket(AF_INET, SOCK_STREAM, IPPROTO_TCP, nullptr, 0, WSA_FLAG_OVERLAPPED);
 
-    if(this->listenSocket == INVALID_SOCKET) {
+    if(networkManager.listenSocket == INVALID_SOCKET) {
         printInfo("Unable to create socket ", WSAGetLastError());
         goto error_handling;
     }
 
-    this->listenPort = CreateIoCompletionPort((HANDLE) listenSocket, nullptr, 0, 0);
+    networkManager.listenPort = CreateIoCompletionPort((HANDLE) networkManager.listenSocket, nullptr, 0, 0);
 
-    if(this->listenPort == nullptr) {
+    if(networkManager.listenPort == nullptr) {
         printInfo("Unable to create association port ", GetLastError());
         goto error_handling;
     }
 
-    networkManager.startWorkerThreads();
+    startWorkerThreads();
 
     service.sin_family = AF_INET;
     service.sin_port = htons(25565);
     inet_pton(AF_INET, "127.0.0.1", &service.sin_addr);
 
-    if (bind(listenSocket,(SOCKADDR *) & service, sizeof (service)) == SOCKET_ERROR){
+    if (bind(networkManager.listenSocket,(SOCKADDR *) & service, sizeof (service)) == SOCKET_ERROR){
         printInfo("bind failed with error: ", WSAGetLastError());
         goto error_handling;
     }
 
 
-    if (listen( listenSocket, 300 ) == SOCKET_ERROR ) {
+    if (listen( networkManager.listenSocket, 300 ) == SOCKET_ERROR ) {
         printInfo("LISTEN  failed with error: ", WSAGetLastError());
         goto error_handling;
     }
 
 
-    WSAIoctl_RESULT = WSAIoctl(listenSocket,
+    WSAIoctl_RESULT = WSAIoctl(networkManager.listenSocket,
                                SIO_GET_EXTENSION_FUNCTION_POINTER,
                            &guidAcceptEx,
                            sizeof (guidAcceptEx),
@@ -410,15 +452,18 @@ bool NETWORK_MANAGER::acceptConnection() const noexcept {
                            nullptr,
                            nullptr);
 
+
+    memory_manager.init();
+
     if (WSAIoctl_RESULT == SOCKET_ERROR) {
         printInfo(" WSAIoctl failed with error: ", WSAGetLastError());
-        closesocket(listenSocket);
+        closesocket(networkManager.listenSocket);
         goto error_handling;
     }
 
     // Pre-load a pool of connections
     for (int i = 0; i < maxPlayers; ++i) {
-        if(!networkManager.acceptConnection()){
+        if(!acceptConnection()){
             printInfo("Failed to create accept Connection pool");
             goto error_handling;
         }
@@ -429,21 +474,21 @@ bool NETWORK_MANAGER::acceptConnection() const noexcept {
     error_handling:
 
         if(!success) {
-            closesocket(listenSocket);
+            closesocket(networkManager.listenSocket);
             WSACleanup();
         }
 
     return success;
 }
 
-[[maybe_unused]] void NETWORK_MANAGER::stopNetworkManager() noexcept {
+[[maybe_unused]] void stopNetworkManager() noexcept {
 
     // Send a signal to the CompletionThread that it should not process any more connections
-    PostQueuedCompletionStatus(this->listenPort, 0, SHUTDOWN_KEY, nullptr);
+    PostQueuedCompletionStatus(networkManager.listenPort, 0, SHUTDOWN_KEY, nullptr);
 
     // Close every SOCKET Connection
-    clientConnections.for_each([this](const SOCKET socket) {
-        this->closeConnection(socket);
+    networkManager.clientConnections.for_each([](const SOCKET socket) {
+        closeConnection(socket);
     });
 
     printInfo("Waiting to clear network worker...");
@@ -452,30 +497,21 @@ bool NETWORK_MANAGER::acceptConnection() const noexcept {
     std::this_thread::sleep_for(std::chrono::milliseconds(2000));
 
     // Close Completion I/O Port
-    CloseHandle(this->listenPort);
+    CloseHandle(networkManager.listenPort);
 
     WSACleanup();
 }
 
-void NETWORK_MANAGER::closeConnection(const SOCKET socket) noexcept {
+void closeConnection(const SOCKET socket) noexcept {
     // Cancel any pending I/O Completion requests
     CancelIoEx((HANDLE)socket, nullptr);
 
     // Terminate connection
     closesocket(socket);
 
-    clientConnections.remove(socket);
+    networkManager.clientConnections.remove(socket);
 }
 
-void NETWORK_MANAGER::startWorkerThreads() {
-
-    unsigned int numThreads = std::thread::hardware_concurrency();
-    workers.reserve(numThreads);
-
-    for (int i = 0; i < numThreads; i++) {
-        workers.emplace_back(NETWORK_MANAGER_CONNECTION_WORKER_FUNCTION);
-    }
-}
 
 
 

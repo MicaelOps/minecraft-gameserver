@@ -19,7 +19,7 @@ public:
 
     void readFromBuffer(ReadPacketBuffer* packetBuffer) override;
 
-    void handlePacket(CONNECTION_INFO *connectionInfo) override;
+    void handlePacket(PLAYER_CONNECTION_CONTEXT* connectionContext) override;
 
     void writeToBuffer(WritePacketBuffer* packetBuffer) override;
 

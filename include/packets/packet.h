@@ -5,8 +5,8 @@
 #ifndef MINECRAFTSERVER_PACKET_H
 #define MINECRAFTSERVER_PACKET_H
 
-#include "../packet_buf.h"
-#include "../server_connection.h"
+#include "server_connection.h"
+#include "packet_buf.h"
 
 
 
@@ -21,7 +21,7 @@ public:
 
     virtual void writeToBuffer(WritePacketBuffer* packetBuffer);
 
-    virtual void handlePacket(CONNECTION_INFO* connectionInfo);
+    virtual void handlePacket(PLAYER_CONNECTION_CONTEXT* connectionContext);
 };
 
 

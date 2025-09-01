@@ -2,7 +2,7 @@
 // Created by Micael Cossa on 26/07/2025.
 //
 
-#include "packet.h"
+#include "packets/packet.h"
 #include <iostream>
 
 void Packet::readFromBuffer(ReadPacketBuffer* packetBuffer) {
@@ -13,7 +13,7 @@ void Packet::writeToBuffer(WritePacketBuffer* packetBuffer) {
     std::cout << "Unsupported call to writeToBuffer";
 }
 
-void Packet::handlePacket(CONNECTION_INFO* connectionInfo){
+void Packet::handlePacket(PLAYER_CONNECTION_CONTEXT* connectionContext){
     std::cout << "Unsupported call to serverHandle";
 }
 

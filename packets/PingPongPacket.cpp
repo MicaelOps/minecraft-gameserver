@@ -3,8 +3,8 @@
 //
 
 #include <iostream>
-#include "PingPongPacket.h"
-#include "../server_handler.h"
+#include "packets/PingPongPacket.h"
+#include "packet_handler.h"
 
 void PingPongPacket::readFromBuffer(ReadPacketBuffer *packetBuffer) {
 
@@ -12,11 +12,11 @@ void PingPongPacket::readFromBuffer(ReadPacketBuffer *packetBuffer) {
 
 }
 
-void PingPongPacket::handlePacket(CONNECTION_INFO* connectionInfo) {
+void PingPongPacket::handlePacket(PLAYER_CONNECTION_CONTEXT* playerConnectionContext) {
 
-    sendPacket(this, connectionInfo);
+    sendPacket(this, playerConnectionContext);
 
-    closeConnection(connectionInfo->playerSocket); // Status Request is over
+    closeConnection(playerConnectionContext->connectionInfo.playerSocket); // Status Request is over
 }
 
 void PingPongPacket::writeToBuffer(WritePacketBuffer *packetBuffer) {

@@ -13,10 +13,10 @@ PaperSpigot:
 
 Main Goals:
 
-- Multithreaded world system
+- Multithreaded world system (possibly with different world generation algorithms in the future)
 - Plugin system for c++ plugins
-- Learning design patterns applications, networking 
-- Match the performance of original loaders (spigot,paperspigot,bukkit)!
+- Learning design patterns applications, advanced networking 
+- Become a suitable replacement for original java providers (spigot,paperspigot,bukkit)! A safe heaven for C++ Bottom Gs.
 
 Future testing:
 
@@ -25,6 +25,8 @@ Future testing:
 
 
 Logs:
+1/08/2025
+- Although there werent significant latency changes in the Ping Pong packet, the server is now written  in a way that is able to handle heavy loads.
 
 30/08/2025
 - 3rd time is the charm, watched some c++ trading latency conferences and gained inspiration to rewrite the network system again to introduce more modern c++ features like jthreads, std::pmr for contiguous memory blocks for pooled resources and branch predictability.

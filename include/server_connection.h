@@ -31,24 +31,19 @@ enum class CONNECTION_CONTEXT_TYPE : unsigned short int {
 struct CONNECTION_INFO {
     SOCKET playerSocket;
     ConnectionState connectionState;
-    std::unique_ptr<char[]> borrowedBuffer;
 };
 
 struct alignas(64) PLAYER_CONNECTION_CONTEXT {
     // Vector for IO buffer, allocated from a memory resource
-    std::pmr::vector<char> ioBuffer;
 
     // Non-copyable
     PLAYER_CONNECTION_CONTEXT(const PLAYER_CONNECTION_CONTEXT&) = delete;
     PLAYER_CONNECTION_CONTEXT& operator=(const PLAYER_CONNECTION_CONTEXT&) = delete;
 
     // Constructor with polymorphic allocator
-    explicit PLAYER_CONNECTION_CONTEXT(std::pmr::memory_resource* mr, size_t reserveSize = 512)
-            : ioBuffer(mr)
-    {
-        ioBuffer.reserve(reserveSize);   // pre-allocate contiguous memory
-        buffer.buf = ioBuffer.data();    // point WSABUF to this memory
-        buffer.len = static_cast<ULONG>(ioBuffer.capacity());
+    explicit PLAYER_CONNECTION_CONTEXT(std::pair<char*, size_t> buffer) {
+        this->buffer.buf = buffer.first;
+        this->buffer.len = buffer.second;
     }
 
     // Connection info
@@ -67,24 +62,25 @@ struct alignas(64) PLAYER_CONNECTION_CONTEXT {
         connectionInfo.connectionState = ConnectionState::HANDSHAKING;
         type = CONNECTION_CONTEXT_TYPE::ACCEPT;
 
-        buffer.buf = nullptr;
-        buffer.len = 0;
+        ZeroMemory(buffer.buf, buffer.len);
     }
-    // Helper to update WSABUF after resizing vector
-    void updateBuffer() {
-        buffer.buf = ioBuffer.data();
-        buffer.len = static_cast<ULONG>(ioBuffer.size());
+
+    void copy(PLAYER_CONNECTION_CONTEXT* context) {
+        connectionInfo.playerSocket = context->connectionInfo.playerSocket;
+        connectionInfo.connectionState = context->connectionInfo.connectionState;
     }
 };
 
+
+
 char* borrowBuffer();
 
-bool sendDataToConnection(WritePacketBuffer* buffer, const CONNECTION_INFO* playerSocket);
+bool sendDataToConnection(WritePacketBuffer* buffer, PLAYER_CONNECTION_CONTEXT* playerSocket);
 
-bool startupServerNetwork();
+[[maybe_unused]] bool startNetworkManager(int maxPlayers) noexcept;
 
-void closeServerSocket();
+[[maybe_unused]] void stopNetworkManager() noexcept;
 
-void closeConnection(SOCKET playerSocket);
+void closeConnection(SOCKET playerSocket) noexcept;
 
 #endif //MINECRAFTSERVER_SERVER_CONNECTION_H

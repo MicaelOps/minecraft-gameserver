@@ -5,9 +5,9 @@
 #include <map>
 #include <memory>
 #include <utility>
-#include "server_handler.h"
-#include "server_utils.h"
 #include "server_connection.h"
+#include "packet_handler.h"
+#include "server_utils.h"
 #include "packets/HandshakePacket.h"
 #include "packets/PingPongPacket.h"
 #include "packets/UndefinedPacket.h"
@@ -32,24 +32,19 @@ void setupPacketFactory() {
     packetFactory[std::to_underlying(ConnectionState::STATUS) + 1] = [] () -> std::unique_ptr<Packet> { return std::make_unique<PingPongPacket>(); };
 }
 
-void invokePacket(ReadPacketBuffer* packetBuffer, CONNECTION_INFO* connectionInfo) {
+void invokePacket(ReadPacketBuffer* packetBuffer, PLAYER_CONNECTION_CONTEXT* connectionContext) {
 
 
     int packetId = packetBuffer->readVarInt();
 
-
     if(packetId > 255 || packetId < 0) {
-        printInfo("invalid Packet id: ", packetId);
+        printInfo("invalid Packet id:  ", packetId);
         return;
     }
 
-    std::unique_ptr<Packet> packet = packetFactory[std::to_underlying(connectionInfo->connectionState) + packetId]();
-
-
-
+    std::unique_ptr<Packet> packet = packetFactory[std::to_underlying(connectionContext->connectionInfo.connectionState) + packetId]();
     packet->readFromBuffer(packetBuffer);
-
-    packet->handlePacket(connectionInfo);
+    packet->handlePacket(connectionContext);
 
 
 }
@@ -62,13 +57,12 @@ void invokePacket(ReadPacketBuffer* packetBuffer, CONNECTION_INFO* connectionInf
  * @param packet
  * @param connectionContext
  */
-void sendPacket(Packet* packet, const CONNECTION_INFO* connectionInfo) {
+void sendPacket(Packet* packet, PLAYER_CONNECTION_CONTEXT* connectionContext) {
 
 
     std::unique_ptr<WritePacketBuffer> packetBuffer = std::make_unique<WritePacketBuffer>(borrowBuffer(), 512);
 
     packet->writeToBuffer(packetBuffer.get());
-
 
     packetBuffer->writeVarIntAtTheFront(packetBuffer->getSize());
 
@@ -77,11 +71,8 @@ void sendPacket(Packet* packet, const CONNECTION_INFO* connectionInfo) {
     // But if you are not the future me and is someone who just happened to come across this file, this single line of code contains days of agony
     packetBuffer->writeByte(0);
 
-    //printf("Packetd of size %zu being sent. \n ", packetBuffer->getSize());
-
-
     // packet size should be the first varInt to be read
-    sendDataToConnection(packetBuffer.get(), connectionInfo);
+    sendDataToConnection(packetBuffer.get(), connectionContext);
 
 
 }

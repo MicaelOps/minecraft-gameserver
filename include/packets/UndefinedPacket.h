@@ -18,7 +18,7 @@ public:
         printf("Call to an undefined Packet! \n");
     }
 
-    void handlePacket(CONNECTION_INFO* connectionInfo) override {
+    void handlePacket(PLAYER_CONNECTION_CONTEXT* connectionContext) override {
         printf("Call to an undefined Packet! \n");
     }
 

@@ -3,7 +3,7 @@
 #include <iostream>
 
 
-void Minecraft::setMOTD(const std::string &newmotd) {
+void Minecraft::setMOTD(const std::string &newmotd) noexcept {
     info.motd = newmotd;
 }
 

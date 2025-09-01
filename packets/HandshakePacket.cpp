@@ -2,10 +2,9 @@
 // Created by Micael Cossa on 26/07/2025.
 //
 
-#include "HandshakePacket.h"
-#include "../minecraft.h"
-#include "../server_utils.h"
-#include "../server_handler.h"
+#include "packets/HandshakePacket.h"
+#include "minecraft.h"
+#include "packet_handler.h"
 
 #define PROTOCOL_VERSION_1_8 47
 
@@ -22,17 +21,17 @@ void HandshakePacket::writeToBuffer(WritePacketBuffer* packetBuffer) {
 
 }
 
-void HandshakePacket::handlePacket(CONNECTION_INFO *connectionInfo) {
+void HandshakePacket::handlePacket(PLAYER_CONNECTION_CONTEXT* connectionContext) {
 
     if(protocolVersion != PROTOCOL_VERSION_1_8) {
         printInfo("A non 1.8.x connection has tried to initiate a handshake..");
-        closeConnection(connectionInfo->playerSocket);
+        closeConnection(connectionContext->connectionInfo.playerSocket);
         return;
     }
 
-    connectionInfo->connectionState = ConnectionState::STATUS;
+    connectionContext->connectionInfo.connectionState = ConnectionState::STATUS;
 
-    sendPacket(this, connectionInfo);
+    sendPacket(this, connectionContext);
 
 }
 
