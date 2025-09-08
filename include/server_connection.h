@@ -18,7 +18,7 @@ enum class ConnectionState : unsigned short int {
     LOGIN = 0,
     STATUS = 10,
     PLAY = 100,
-    HANDSHAKING = 20
+    HANDSHAKING = 20, DISCONNECT = 999
 };
 
 enum class CONNECTION_CONTEXT_TYPE : unsigned short int {
@@ -45,6 +45,7 @@ struct alignas(64) PLAYER_CONNECTION_CONTEXT {
         this->buffer.buf = buffer.first;
         this->buffer.len = buffer.second;
     }
+
 
     // Connection info
     CONNECTION_INFO connectionInfo {INVALID_SOCKET, ConnectionState::HANDSHAKING};
@@ -73,7 +74,7 @@ struct alignas(64) PLAYER_CONNECTION_CONTEXT {
 
 
 
-char* borrowBuffer();
+PLAYER_CONNECTION_CONTEXT* borrowContext();
 
 bool sendDataToConnection(WritePacketBuffer* buffer, PLAYER_CONNECTION_CONTEXT* playerSocket);
 
@@ -81,6 +82,6 @@ bool sendDataToConnection(WritePacketBuffer* buffer, PLAYER_CONNECTION_CONTEXT* 
 
 [[maybe_unused]] void stopNetworkManager() noexcept;
 
-void closeConnection(SOCKET playerSocket) noexcept;
+void closeConnection(PLAYER_CONNECTION_CONTEXT* playerConnectionContext) noexcept;
 
 #endif //MINECRAFTSERVER_SERVER_CONNECTION_H

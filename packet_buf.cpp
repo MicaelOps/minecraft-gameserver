@@ -14,10 +14,9 @@
 int ReadPacketBuffer::readVarInt() {
     int final_result = 0, shifts = 0;
 
-    while(position < MAXIMUM_VARINT_BITS && position < size) {
+    while(shifts < MAXIMUM_VARINT_BITS && position < size) {
 
         final_result |= (buffer[position] & SEGMENT_BITS) << (shifts*7);
-
 
         position++;
 
@@ -35,7 +34,7 @@ char *ReadPacketBuffer::getBuffer() {
     return buffer;
 }
 
-int ReadPacketBuffer::getSize() const {
+int ReadPacketBuffer::getSize() {
     return size;
 }
 
@@ -50,7 +49,7 @@ long long int ReadPacketBuffer::readLong() {
         return 0;
     }
     long long value;
-    for (int i = 0; i < 8; i++) {
+    for (int i = 0; i < length; i++) {
         reinterpret_cast<unsigned char*>(&value)[i] =
                 static_cast<unsigned char>(buffer[position + (7 - i)]);
     }
@@ -59,6 +58,44 @@ long long int ReadPacketBuffer::readLong() {
 
     return value;
 }
+
+std::string ReadPacketBuffer::readString() {
+
+    std::ostringstream output;
+
+    int stringLength = readVarInt();
+
+    if(position + stringLength > size) {
+        printf("String length bigger than buffer size , Position: %d String Length: %d Buffer Size: %d", position, stringLength, size);
+        return "";
+    }
+
+    for(int i = 0; i < stringLength; i++) {
+        output << buffer[position];
+        position++;
+    }
+    return output.str();
+}
+
+short ReadPacketBuffer::readShort() {
+    int length = sizeof(short);
+
+
+
+    if(position + length > size) {
+        printf("Unable to readShort, buffer size not big enough position: %d , bufferSize: %d \n", (position + length), size);
+        return 0;
+    }
+    short value;
+    for (int i = 0; i < length; i++) {
+        reinterpret_cast<unsigned char*>(&value)[i] =
+                static_cast<unsigned char>(buffer[position + (1 - i)]);
+    }
+
+    position+=length;
+    return value;
+}
+
 // Pre-allocate a buffer of at least 'n' bytes
 void WritePacketBuffer::reserve(size_t n) {
     if (capacity < n) {
@@ -72,11 +109,8 @@ void WritePacketBuffer::reserve(size_t n) {
     }
 }
 
-char* WritePacketBuffer::getBuffer() {
-    return buffer;
-}
 
-size_t WritePacketBuffer::getSize() const {
+size_t WritePacketBuffer::getSize() {
     return currPos;
 }
 
@@ -153,11 +187,5 @@ void WritePacketBuffer::writeLong(const long long int value) {
     memcpy(buffer + currPos, &value, sizeof(value));
     currPos += sizeof(value);
 
-}
-
-char *WritePacketBuffer::moveBufferToNull() {
-    char* oldbuffer = buffer;
-    buffer = nullptr;
-    return oldbuffer;
 }
 

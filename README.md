@@ -5,7 +5,7 @@ A personal learning project to improve c++ expertise.
 
 This project is the Shared Library that plugins and the executable implement.
 
-C++ Minecraft Server: (There have been some glorious 0ms)
+C++ Minecraft Server:
 ![img_3.png](img_3.png)
 
 PaperSpigot:
@@ -13,10 +13,11 @@ PaperSpigot:
 
 Main Goals:
 
+- Write everything from scratch, no external libraries used
 - Multithreaded world system (possibly with different world generation algorithms in the future)
 - Plugin system for c++ plugins
 - Learning design patterns applications, advanced networking 
-- Become a suitable replacement for original java providers (spigot,paperspigot,bukkit)! A safe heaven for C++ Bottom Gs.
+- Compete with original java interfaces (spigot,paperspigot,craftbukkit)! A safe haven for C++ OGs.
 
 Future testing:
 
@@ -25,7 +26,11 @@ Future testing:
 
 
 Logs:
-1/08/2025
+
+08/09/2025
+- There is a big issue on the memory_manager.returnContext as the PLAYER_CONNECTION_CONTEXTS are not returning to the correct pool thread. Eventually I will deal with this as it is only relevant after 70+ pings happen.
+
+01/09/2025
 - Although there werent significant latency changes in the Ping Pong packet, the server is now written  in a way that is able to handle heavy loads.
 
 30/08/2025

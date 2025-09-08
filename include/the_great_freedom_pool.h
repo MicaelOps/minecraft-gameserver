@@ -39,13 +39,13 @@ public:
         }
     }
 
-    T acquire() {
+    T& acquire() {
         std::lock_guard<std::mutex> lock(mutex);
         if(pool.empty()) {
             return creator();
         }
 
-        T object = pool.back();
+        auto object = pool.back();
         pool.pop_back();
         return object;
     }

@@ -18,6 +18,7 @@
 using PacketGenerator = std::unique_ptr<Packet>(*)();
 
 namespace  {
+    // Minecraft packets dont exceed 256
     std::array<PacketGenerator, 256> packetFactory;
 }
 
@@ -33,7 +34,6 @@ void setupPacketFactory() {
 }
 
 void invokePacket(ReadPacketBuffer* packetBuffer, PLAYER_CONNECTION_CONTEXT* connectionContext) {
-
 
     int packetId = packetBuffer->readVarInt();
 
@@ -60,11 +60,21 @@ void invokePacket(ReadPacketBuffer* packetBuffer, PLAYER_CONNECTION_CONTEXT* con
 void sendPacket(Packet* packet, PLAYER_CONNECTION_CONTEXT* connectionContext) {
 
 
-    std::unique_ptr<WritePacketBuffer> packetBuffer = std::make_unique<WritePacketBuffer>(borrowBuffer(), 512);
+    PLAYER_CONNECTION_CONTEXT* sendcontext = borrowContext();
+
+    if (!sendcontext) {
+        printInfo("Failed to acquire context for sending");
+        return;
+    }
+
+    // copy the socket, state, status
+    sendcontext->copy(connectionContext);
+
+    std::unique_ptr<WritePacketBuffer> packetBuffer = std::make_unique<WritePacketBuffer>(sendcontext->buffer.buf, sendcontext->buffer.len);
 
     packet->writeToBuffer(packetBuffer.get());
 
-    packetBuffer->writeVarIntAtTheFront(packetBuffer->getSize());
+    packetBuffer->writeVarIntAtTheFront((int)packetBuffer->getSize());
 
     // dummy byte, for some reason minecraft drops one byte (which would completely mess up the way it was read) despite WSASend confirming the correct amount of bytes sent
     // The fact that I am writing this,  despite knowing this project wont be shared, it would give insights to the levels of frustrations.
@@ -72,7 +82,7 @@ void sendPacket(Packet* packet, PLAYER_CONNECTION_CONTEXT* connectionContext) {
     packetBuffer->writeByte(0);
 
     // packet size should be the first varInt to be read
-    sendDataToConnection(packetBuffer.get(), connectionContext);
+    sendDataToConnection(packetBuffer.get(), sendcontext);
 
 
 }

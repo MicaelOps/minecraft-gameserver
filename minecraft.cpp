@@ -2,6 +2,8 @@
 
 #include <iostream>
 
+// Singleton design
+
 
 void Minecraft::setMOTD(const std::string &newmotd) noexcept {
     info.motd = newmotd;

@@ -2,7 +2,6 @@
 // Created by Micael Cossa on 26/08/2025.
 //
 
-#include <iostream>
 #include "packets/PingPongPacket.h"
 #include "packet_handler.h"
 
@@ -16,7 +15,9 @@ void PingPongPacket::handlePacket(PLAYER_CONNECTION_CONTEXT* playerConnectionCon
 
     sendPacket(this, playerConnectionContext);
 
-    closeConnection(playerConnectionContext->connectionInfo.playerSocket); // Status Request is over
+    closeConnection(playerConnectionContext);
+
+
 }
 
 void PingPongPacket::writeToBuffer(WritePacketBuffer *packetBuffer) {

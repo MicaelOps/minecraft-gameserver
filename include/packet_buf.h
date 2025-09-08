@@ -21,9 +21,13 @@ public:
     explicit ReadPacketBuffer(char* buffer, int size) : buffer(buffer) , size(size) {}
 
     char* getBuffer();
-    int getSize() const;
+    int getSize();
     int readVarInt();
     long long int readLong();
+
+    std::string readString();
+
+    short readShort();
 };
 
 /**
@@ -38,13 +42,10 @@ class WritePacketBuffer {
 public:
 
 
-    explicit WritePacketBuffer(char*buffer, size_t capacity) : buffer(buffer), capacity(capacity) {
-    }
+    explicit WritePacketBuffer(char*buffer, size_t capacity) : buffer(buffer), capacity(capacity) {}
 
-    char* getBuffer();
-    size_t getSize() const;
+    size_t getSize();
 
-    char* moveBufferToNull(); // transfer the ownership of our buffer (to PLAYER_CONNECTION_CONTEXT) so this object can be deleted
     void reserve(size_t n);
     void writeVarIntAtTheFront(int value);
     void writeVarInt(int value);

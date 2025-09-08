@@ -8,6 +8,8 @@
 #include <windows.h>
 #include <iostream>
 #include <array>
+#include <mutex>
+static std::mutex logMutex;
 
 enum class COLOUR : unsigned int {
     BLACK,
@@ -90,11 +92,9 @@ constexpr std::string_view getColour(const COLOUR colour) {
     return colourCodes[colourIndex];
 }
 
-
-// Base case for recursion
 template<typename T>
 void print(T value) {
-    std::cout << value << "\n";
+    std::cout << value;
 }
 
 // Recursive case
@@ -109,8 +109,13 @@ template<typename... Args>
 void printInfo(Args... args) {
     SYSTEMTIME localTime;
     GetLocalTime(&localTime);
-    std::cout << "[" << localTime.wHour << ":" << localTime.wMinute << ":" << localTime.wSecond << "] [INFO] ";
+    std::lock_guard<std::mutex> lock(logMutex); // lock while printing
+    std::cout << "["
+              << localTime.wHour << ":"
+              << localTime.wMinute << ":"
+              << localTime.wSecond
+              << "] [INFO] ";
     print(args...);
+    std::cout << "\n"; // only one newline
 }
-
 #endif //MINECRAFTSERVER_SERVER_UTILS_H

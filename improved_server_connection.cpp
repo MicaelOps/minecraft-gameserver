@@ -13,8 +13,10 @@
 
 
 struct MEMORY_MANAGER {
-    alignas(64) std::array<std::byte, 2 * 1024 * 1024> contextBuffer{};
-    alignas(64) std::array<std::byte, 4 * 1024 * 1024> ioBuffer{};
+
+    // Contiguous pool of PLAYER_CONNECTION_CONTEXT and char* buffers
+    std::array<std::byte, 2 * 1024 * 1024> contextBuffer{};
+    std::array<std::byte, 4 * 1024 * 1024> ioBuffer{};
 
 
     std::pmr::monotonic_buffer_resource contextUpstream{contextBuffer.data(), contextBuffer.size()};
@@ -67,8 +69,8 @@ struct NETWORK_MANAGER {
 
 
 PLAYER_CONNECTION_CONTEXT* MEMORY_MANAGER::acquireContext() {
-    if (freeContexts.empty()) return nullptr;
 
+    if (freeContexts.empty()) return nullptr;
     auto* ctx = freeContexts.back();
     freeContexts.pop_back();
 
@@ -78,10 +80,12 @@ PLAYER_CONNECTION_CONTEXT* MEMORY_MANAGER::acquireContext() {
 
 void MEMORY_MANAGER::returnContext(PLAYER_CONNECTION_CONTEXT* connectionContext) {
     connectionContext->reset();
+    releaseBuffer(std::make_pair(connectionContext->buffer.buf, connectionContext->buffer.len));
     freeContexts.push_back(connectionContext);
 }
 
 std::pair<char*, size_t> MEMORY_MANAGER::acquireBuffer() {
+
     if (freeIOBuffers.empty()) return {nullptr, 0};
 
     auto ctx = freeIOBuffers.back();
@@ -120,6 +124,8 @@ void MEMORY_MANAGER::preAllocateIOBuffers(size_t count) {
 
 
     // Pre-allocate common buffer sizes
+    // This will become useful later on after I do some profiling on the average packet size after player has logged in
+    // Especially when sending/receiving chunk data
     constexpr std::array<size_t, 4> COMMON_SIZES = {512, 1024, 4096, 8192};
 
     freeIOBuffers.reserve(count*COMMON_SIZES.size());
@@ -150,10 +156,8 @@ namespace {
 
 }
 
-// TO BE FIXED -> WHY CHAR* NOT STD::PAIR
-// WRITEPACKETBUFFER NEEDS FIXING!
-char* borrowBuffer() {
-    return memory_manager.acquireBuffer().first;
+PLAYER_CONNECTION_CONTEXT* borrowContext() {
+    return memory_manager.acquireContext();
 }
 
 void proccessPacket(PLAYER_CONNECTION_CONTEXT* context, DWORD bytesRead) {
@@ -164,6 +168,7 @@ void proccessPacket(PLAYER_CONNECTION_CONTEXT* context, DWORD bytesRead) {
 
     if(bytesRead < packetSize) {
         printInfo("Need to perform more read to full ready this packet. Packet size: ",  packetSize , " Bytes Read: " , bytesRead);
+        //closeConnection(context); will handle this another time!
         return;
     }
 
@@ -171,20 +176,10 @@ void proccessPacket(PLAYER_CONNECTION_CONTEXT* context, DWORD bytesRead) {
 
 }
 
-bool sendDataToConnection(WritePacketBuffer* buffer, PLAYER_CONNECTION_CONTEXT* referenceContext) {
+bool sendDataToConnection(WritePacketBuffer* buffer, PLAYER_CONNECTION_CONTEXT* connection_context) {
+    printInfo("Thread " , std::this_thread::get_id(), " sending data connection");
 
-    // Setup pOverlapped
-    auto* connection_context = memory_manager.acquireContext();
     SecureZeroMemory(&connection_context->overlapped, sizeof(OVERLAPPED));
-
-    connection_context->copy(referenceContext);
-
-
-    // Transfer ownership of buffer data to context
-    char* packetbuffer = buffer->moveBufferToNull();
-
-    connection_context->buffer.buf = packetbuffer;
-    connection_context->buffer.len = buffer->getSize();
 
     int result = WSASend(connection_context->connectionInfo.playerSocket,
                          &connection_context->buffer,
@@ -201,11 +196,13 @@ bool sendDataToConnection(WritePacketBuffer* buffer, PLAYER_CONNECTION_CONTEXT* 
 
     return true;
 }
-bool readPacket(PLAYER_CONNECTION_CONTEXT* context) {
+
+void readPacket(PLAYER_CONNECTION_CONTEXT* context) {
 
     SecureZeroMemory(&context->overlapped, sizeof(OVERLAPPED));
     SecureZeroMemory(context->buffer.buf, context->buffer.len); // reset buffer
 
+    printInfo("Thread " , std::this_thread::get_id(), " readpacket io request sent");
 
     context->type = CONNECTION_CONTEXT_TYPE::RECEIVE;
 
@@ -221,10 +218,8 @@ bool readPacket(PLAYER_CONNECTION_CONTEXT* context) {
 
     if(result == SOCKET_ERROR && WSAGetLastError() != WSA_IO_PENDING) {
         printInfo("Unable to read data from socket ", WSAGetLastError());
-        return false;
-    }
 
-    return true;
+    }
 }
 
 
@@ -238,13 +233,18 @@ bool acceptConnection()  noexcept {
         return false; // nothing has been allocated for cleanup;
     }
 
-    auto lpOutputBuf = new char[2 * (sizeof(SOCKADDR_IN)) + 32]; // Must be valid!
     DWORD bytesReceived = 0;
 
     bool success = false;
 
     // Prepare Context
     auto* connection_context = memory_manager.acquireContext();
+
+    if (!connection_context) {
+        printInfo("Failed to acquire context for sending");
+        return false;
+    }
+
     SecureZeroMemory(&connection_context->overlapped, sizeof(OVERLAPPED));
 
     HANDLE acceptPort;
@@ -285,7 +285,6 @@ bool acceptConnection()  noexcept {
     error_handling:
         if(!success) {
             closesocket(AcceptSocket);
-            delete[] lpOutputBuf;
             memory_manager.returnContext(connection_context);
         }
 
@@ -309,30 +308,36 @@ void proccessIOCPCompletion(PLAYER_CONNECTION_CONTEXT* connectionContext, DWORD 
             setsockopt(connectionContext->connectionInfo.playerSocket, IPPROTO_TCP, TCP_NODELAY, (char*)&flag, sizeof(flag));
 
             networkManager.clientConnections.insert(connectionContext->connectionInfo.playerSocket);
-            //acceptConnection(); // Accept a new connection
-
+            readPacket(connectionContext);
+            acceptConnection(); // Accept a new connection
             break;
+
         case CONNECTION_CONTEXT_TYPE::RECEIVE:
 
-            if(numberOfBytesTransferred > 0)
+
+            if(numberOfBytesTransferred == 0 ){
+                printInfo("0 bytes were read for a connection, shutting down gracefully");
+                closeConnection(connectionContext);
+            } else {
                 proccessPacket(connectionContext, numberOfBytesTransferred);
+
+                if(connectionContext->connectionInfo.connectionState != ConnectionState::DISCONNECT)
+                    readPacket(connectionContext);
+            }
+
 
             break;
         case CONNECTION_CONTEXT_TYPE::SEND:
+            printInfo("sent has been completed");
             memory_manager.returnContext(connectionContext); // send contexts are disposable as they do nothing while read contexts are reusable in the same instance
             break;
+
         default:
             std::unreachable(); // fancy modern c++ function tsk tsk
     }
 
-
-    if(connectionContext->type != CONNECTION_CONTEXT_TYPE::SEND) {
-        if(!readPacket(connectionContext)) {
-            printInfo("Failed to read packet to connection");
-        }
-    }
 }
-void NETWORK_MANAGER_CONNECTION_WORKER_FUNCTION(const std::stop_token& token, NETWORK_MANAGER& manager, unsigned int threadId) {
+void NETWORK_MANAGER_CONNECTION_WORKER_FUNCTION(const std::stop_token& token, unsigned int threadId) {
 
     constexpr unsigned MEMORY_RESET_OPERATION_TRIGGER = 1000;
     unsigned int operationCount = 0;
@@ -371,6 +376,14 @@ void NETWORK_MANAGER_CONNECTION_WORKER_FUNCTION(const std::stop_token& token, NE
 
 
             auto* context = CONTAINING_RECORD(completion.lpOverlapped, PLAYER_CONNECTION_CONTEXT, overlapped);
+            auto errorCode = static_cast<DWORD>(completion.Internal);
+
+            if (errorCode != ERROR_SUCCESS) {
+                printInfo("I/O failed with error: ", errorCode);
+                closeConnection(context);
+                continue;
+            }
+
             proccessIOCPCompletion(context, completion.dwNumberOfBytesTransferred);
         }
 
@@ -383,12 +396,12 @@ void NETWORK_MANAGER_CONNECTION_WORKER_FUNCTION(const std::stop_token& token, NE
 
 void startWorkerThreads() {
 
-    unsigned int numThreads = std::thread::hardware_concurrency();
-    printInfo("Core Thread count: ", numThreads);
+    unsigned int numThreads = std::thread::hardware_concurrency()/2;
+    printInfo("Worker Network Threads count: ", numThreads);
     networkManager.workers.reserve(numThreads);
 
     for (int i = 0; i < numThreads; i++) {
-        networkManager.workers.emplace_back(NETWORK_MANAGER_CONNECTION_WORKER_FUNCTION, std::ref(networkManager), i);
+        networkManager.workers.emplace_back(NETWORK_MANAGER_CONNECTION_WORKER_FUNCTION, i);
     }
 }
 [[maybe_unused]] bool startNetworkManager(int maxPlayers) noexcept {
@@ -410,7 +423,7 @@ void startWorkerThreads() {
         return false;
     }
 
-    networkManager.listenSocket = WSASocket(AF_INET, SOCK_STREAM, IPPROTO_TCP, nullptr, 0, WSA_FLAG_OVERLAPPED);
+    networkManager.listenSocket = WSASocketW(AF_INET, SOCK_STREAM, IPPROTO_TCP, nullptr, 0, WSA_FLAG_OVERLAPPED);
 
     if(networkManager.listenSocket == INVALID_SOCKET) {
         printInfo("Unable to create socket ", WSAGetLastError());
@@ -481,6 +494,27 @@ void startWorkerThreads() {
     return success;
 }
 
+
+void closeSocketConnection(SOCKET socket) {
+    // Cancel any pending I/O Completion requests
+    CancelIoEx((HANDLE) socket, nullptr);
+
+    // Terminate connection
+    closesocket(socket);
+
+    networkManager.clientConnections.remove(socket);
+}
+void closeConnection(PLAYER_CONNECTION_CONTEXT* playerConnectionContext) noexcept {
+
+    printInfo("Thread " , std::this_thread::get_id(), " closing connection");
+
+    playerConnectionContext->connectionInfo.connectionState = ConnectionState::DISCONNECT;
+
+    closeSocketConnection(playerConnectionContext->connectionInfo.playerSocket);
+
+    memory_manager.returnContext(playerConnectionContext);
+}
+
 [[maybe_unused]] void stopNetworkManager() noexcept {
 
     // Send a signal to the CompletionThread that it should not process any more connections
@@ -488,7 +522,7 @@ void startWorkerThreads() {
 
     // Close every SOCKET Connection
     networkManager.clientConnections.for_each([](const SOCKET socket) {
-        closeConnection(socket);
+        closeSocketConnection(socket);
     });
 
     printInfo("Waiting to clear network worker...");
@@ -502,15 +536,6 @@ void startWorkerThreads() {
     WSACleanup();
 }
 
-void closeConnection(const SOCKET socket) noexcept {
-    // Cancel any pending I/O Completion requests
-    CancelIoEx((HANDLE)socket, nullptr);
-
-    // Terminate connection
-    closesocket(socket);
-
-    networkManager.clientConnections.remove(socket);
-}
 
 
 

@@ -8,6 +8,7 @@
 #include <unordered_map>
 #include <string>
 
+// at some point in the future i will do this
 class json_node {
 
 public:
