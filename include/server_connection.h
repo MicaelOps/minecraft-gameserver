@@ -6,19 +6,17 @@
 #define MINECRAFTSERVER_SERVER_CONNECTION_H
 
 // Linux implementation will come later, maybe when I have a spare laptop or this project is near complete.
-#include <winsock2.h>
+#include "networking_imports.h"
 #include <memory>
 #include "concurrent_unordered_set.h"
 #include "packet_buf.h"
 
-#pragma comment(lib, "Ws2_32.lib")
-
-
 enum class ConnectionState : unsigned short int {
-    LOGIN = 0,
-    STATUS = 10,
-    PLAY = 100,
-    HANDSHAKING = 20, DISCONNECT = 999
+    HANDSHAKING = 0,
+    STATUS = 1,
+    LOGIN = 3,
+    PLAY = 20, DISCONNECT = 999
+
 };
 
 enum class CONNECTION_CONTEXT_TYPE : unsigned short int {
@@ -34,18 +32,20 @@ struct CONNECTION_INFO {
 };
 
 struct alignas(64) PLAYER_CONNECTION_CONTEXT {
-    // Vector for IO buffer, allocated from a memory resource
+
 
     // Non-copyable
     PLAYER_CONNECTION_CONTEXT(const PLAYER_CONNECTION_CONTEXT&) = delete;
     PLAYER_CONNECTION_CONTEXT& operator=(const PLAYER_CONNECTION_CONTEXT&) = delete;
 
-    // Constructor with polymorphic allocator
-    explicit PLAYER_CONNECTION_CONTEXT(std::pair<char*, size_t> buffer) {
+    explicit PLAYER_CONNECTION_CONTEXT(std::pair<char*, size_t> buffer, std::thread::id owner) {
         this->buffer.buf = buffer.first;
         this->buffer.len = buffer.second;
+        this->contextOwner = owner;
     }
 
+    // IOCP worker thread responsible for construction and destruction of this struct;
+    std::thread::id contextOwner;
 
     // Connection info
     CONNECTION_INFO connectionInfo {INVALID_SOCKET, ConnectionState::HANDSHAKING};
@@ -53,6 +53,7 @@ struct alignas(64) PLAYER_CONNECTION_CONTEXT {
 
     // Overlapped IO
     OVERLAPPED overlapped {};
+
 
     // WSABUF to use with Windows socket APIs
     WSABUF buffer{};
@@ -69,19 +70,44 @@ struct alignas(64) PLAYER_CONNECTION_CONTEXT {
     void copy(PLAYER_CONNECTION_CONTEXT* context) {
         connectionInfo.playerSocket = context->connectionInfo.playerSocket;
         connectionInfo.connectionState = context->connectionInfo.connectionState;
+        type = context->type;
     }
+};
+
+using RECEIVE_DATA_EVENT_HANDLER = void (*)(ReadPacketBuffer*, PLAYER_CONNECTION_CONTEXT*);
+using LOAD_IOCP_WORKER_THREAD_EVENT_HANDLER = void (*)();
+
+class NetworkManager {
+
+private:
+
+    std::vector<std::jthread> workers;
+
+    void startWorkerThreads();
+
+
+public:
+
+    explicit NetworkManager(RECEIVE_DATA_EVENT_HANDLER receiveDataHandler, LOAD_IOCP_WORKER_THREAD_EVENT_HANDLER loadIocpWorkerThreadEventHandler) : receiveDataEventHandler(receiveDataHandler), loadIocpWorkerThreadEventHandler(loadIocpWorkerThreadEventHandler){};
+
+    NetworkManager(const NetworkManager& copyin) = delete;
+    NetworkManager& operator=(const NetworkManager&) = delete;
+
+    PLAYER_CONNECTION_CONTEXT*  acquireContext();
+    bool sendDataToConnection(PLAYER_CONNECTION_CONTEXT* playerSocket);
+    bool startNetworkManager(int maxPlayers) noexcept;
+    void stopNetworkManager() noexcept;
+    void closeConnection(PLAYER_CONNECTION_CONTEXT* playerConnectionContext) noexcept;
+    void closeSocketConnection(SOCKET socket);
+
+    HANDLE listenPort = nullptr;
+    SOCKET listenSocket = INVALID_SOCKET;
+    concurrent_unordered_set<SOCKET> clientConnections;
+    RECEIVE_DATA_EVENT_HANDLER receiveDataEventHandler;
+    LOAD_IOCP_WORKER_THREAD_EVENT_HANDLER loadIocpWorkerThreadEventHandler;
 };
 
 
 
-PLAYER_CONNECTION_CONTEXT* borrowContext();
-
-bool sendDataToConnection(PLAYER_CONNECTION_CONTEXT* playerSocket);
-
-[[maybe_unused]] bool startNetworkManager(int maxPlayers) noexcept;
-
-[[maybe_unused]] void stopNetworkManager() noexcept;
-
-void closeConnection(PLAYER_CONNECTION_CONTEXT* playerConnectionContext) noexcept;
 
 #endif //MINECRAFTSERVER_SERVER_CONNECTION_H

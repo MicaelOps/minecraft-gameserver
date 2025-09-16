@@ -3,6 +3,7 @@
 
 #include "player.h"
 #include "server_utils.h"
+#include "server_connection.h"
 
 #include <unordered_set>
 #include <memory>
@@ -29,15 +30,16 @@ struct SERVER_INFO {
 namespace Minecraft
 {
 
-    extern CORE_API SERVER_INFO ServerInformation;
-    extern CORE_API const std::atomic<std::shared_ptr<std::unordered_set<Player>>> Players;
 
-    SERVER_INFO getServerInformation();
+    CORE_API NetworkManager& getNetworkManager();
+    CORE_API SERVER_INFO getServerInformation();
+    CORE_API const std::atomic<std::shared_ptr<std::unordered_set<Player>>>* getPlayers();
 
-    bool startup();
+    CORE_API bool startupServer();
+    CORE_API void closeServer();
 
-    bool playerExistsByUUID(const std::string_view &uuid);
-    bool playerExistsByName(const std::string_view &username);
+    CORE_API bool playerExistsByUUID(const std::string_view &uuid);
+    CORE_API bool playerExistsByName(const std::string_view &username);
 
 }
 

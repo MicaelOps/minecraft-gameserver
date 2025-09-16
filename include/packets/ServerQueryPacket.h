@@ -14,9 +14,11 @@ public:
 
     void writeToBuffer(WritePacketBuffer* packetBuffer) override {};
 
+    void clear() override {};
 
     ServerQueryPacket() = default;
 };
+
 
 
 #endif //CORE_MINESERVER_SERVERQUERYPACKET_H

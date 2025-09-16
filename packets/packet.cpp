@@ -14,3 +14,7 @@ void Packet::handlePacket(ReadPacketBuffer* packetBuffer, PLAYER_CONNECTION_CONT
     std::cout << "Unsupported call to serverHandle";
 }
 
+void Packet::clear() {
+    std::cout << "Unsupported call to clear";
+}
+

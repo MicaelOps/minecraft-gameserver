@@ -27,6 +27,9 @@ Future testing:
 
 Logs:
 
+16/09/2025
+- Started Login process, fixed the returnContext to return to the correct thread, changed the network architecture for the Minecraft API and made packets handling come from a preAllocated thread_local array to not waste heap allocations. More consistent 0ms pings
+
 08/09/2025
 - There is a big issue on the memory_manager.returnContext as the PLAYER_CONNECTION_CONTEXTS are not returning to the correct pool thread. Eventually I will deal with this as it is only relevant after 70+ pings happen.
 

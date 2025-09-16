@@ -20,6 +20,8 @@ public:
     virtual void writeToBuffer(WritePacketBuffer* packetBuffer);
 
     virtual void handlePacket(ReadPacketBuffer* packetBuffer, PLAYER_CONNECTION_CONTEXT* connectionContext);
+
+    virtual void clear();
 };
 
 

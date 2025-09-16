@@ -22,9 +22,15 @@ public:
     void writeToBuffer(WritePacketBuffer* packetBuffer) override {
         printf("Call to an undefined Packet! \n");
     }
+    void clear() override;
+
 
     UndefinedPacket() = default;
 };
+
+void UndefinedPacket::clear() {
+
+}
 
 
 #endif //CORE_MINESERVER_UNDEFINEDPACKET_H

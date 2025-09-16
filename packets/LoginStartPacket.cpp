@@ -14,7 +14,7 @@ void LoginStartPacket::handlePacket(ReadPacketBuffer* packetBuffer, PLAYER_CONNE
     if(Minecraft::playerExistsByName(name)) {
         disconnectReason = std::string("'").append(std::string(getColour(COLOUR::RED)).append("Player already exists'"));
         sendPacket(this, playerConnectionContext);
-        closeConnection(playerConnectionContext);
+        Minecraft::getNetworkManager().closeConnection(playerConnectionContext);
     }
 
 }
@@ -22,4 +22,8 @@ void LoginStartPacket::handlePacket(ReadPacketBuffer* packetBuffer, PLAYER_CONNE
 void LoginStartPacket::writeToBuffer(WritePacketBuffer *packetBuffer) {
     packetBuffer->writeVarInt(0);
     packetBuffer->writeString(disconnectReason);
+}
+
+void LoginStartPacket::clear() {
+
 }

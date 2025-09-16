@@ -24,6 +24,7 @@ public:
 
     void writeToBuffer(WritePacketBuffer* packetBuffer) override;
 
+    void clear() override;
 
     LoginStartPacket() = default;
 };

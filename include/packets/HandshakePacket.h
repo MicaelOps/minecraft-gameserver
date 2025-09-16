@@ -21,6 +21,7 @@ public:
 
     void writeToBuffer(WritePacketBuffer* packetBuffer) override;
 
+    void clear() override;
 
     HandshakePacket() {
         protocolVersion =-1;

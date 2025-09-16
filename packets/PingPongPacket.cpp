@@ -5,6 +5,7 @@
 #include <chrono>
 #include "packets/PingPongPacket.h"
 #include "packet_handler.h"
+#include "minecraft.h"
 
 
 void PingPongPacket::handlePacket(ReadPacketBuffer* packetBuffer, PLAYER_CONNECTION_CONTEXT* playerConnectionContext) {
@@ -13,7 +14,7 @@ void PingPongPacket::handlePacket(ReadPacketBuffer* packetBuffer, PLAYER_CONNECT
     sendPacket(this, playerConnectionContext);
 
 
-    closeConnection(playerConnectionContext);
+    Minecraft::getNetworkManager().closeConnection(playerConnectionContext);
 
 
 }
@@ -22,5 +23,9 @@ void PingPongPacket::writeToBuffer(WritePacketBuffer *packetBuffer) {
 
     packetBuffer->writeVarInt(1); // packet id
     packetBuffer->writeLong(ping);
+
+}
+
+void PingPongPacket::clear() {
 
 }

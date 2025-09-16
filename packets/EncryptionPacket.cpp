@@ -12,3 +12,7 @@ void EncryptionPacket::writeToBuffer(WritePacketBuffer *packetBuffer) {
     packetBuffer->writeVarInt(1);
     packetBuffer->writeString("serverid");
 }
+
+void EncryptionPacket::clear() {
+
+}
