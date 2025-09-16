@@ -14,18 +14,14 @@
 class UndefinedPacket : public Packet {
 
 public:
-    void readFromBuffer(ReadPacketBuffer* packetBuffer) override  {
-        printf("Call to an undefined Packet! \n");
-    }
 
-    void handlePacket(PLAYER_CONNECTION_CONTEXT* connectionContext) override {
+    void handlePacket(ReadPacketBuffer* packetBuffer, PLAYER_CONNECTION_CONTEXT* connectionContext) override {
         printf("Call to an undefined Packet! \n");
     }
 
     void writeToBuffer(WritePacketBuffer* packetBuffer) override {
         printf("Call to an undefined Packet! \n");
     }
-
 
     UndefinedPacket() = default;
 };

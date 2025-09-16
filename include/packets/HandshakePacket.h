@@ -17,9 +17,7 @@ private:
 
 public:
 
-    void readFromBuffer(ReadPacketBuffer* packetBuffer) override;
-
-    void handlePacket(PLAYER_CONNECTION_CONTEXT* connectionContext) override;
+    void handlePacket(ReadPacketBuffer* packetBuffer, PLAYER_CONNECTION_CONTEXT* connectionContext) override;
 
     void writeToBuffer(WritePacketBuffer* packetBuffer) override;
 

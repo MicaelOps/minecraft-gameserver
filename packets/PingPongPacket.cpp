@@ -2,18 +2,16 @@
 // Created by Micael Cossa on 26/08/2025.
 //
 
+#include <chrono>
 #include "packets/PingPongPacket.h"
 #include "packet_handler.h"
 
-void PingPongPacket::readFromBuffer(ReadPacketBuffer *packetBuffer) {
+
+void PingPongPacket::handlePacket(ReadPacketBuffer* packetBuffer, PLAYER_CONNECTION_CONTEXT* playerConnectionContext) {
 
     ping = packetBuffer->readLong();
-
-}
-
-void PingPongPacket::handlePacket(PLAYER_CONNECTION_CONTEXT* playerConnectionContext) {
-
     sendPacket(this, playerConnectionContext);
+
 
     closeConnection(playerConnectionContext);
 

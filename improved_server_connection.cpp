@@ -8,6 +8,7 @@
 #include <memory_resource>
 #include <utility>
 #include <functional>
+#include <chrono>
 #include "packet_handler.h"
 #include "server_utils.h"
 
@@ -149,10 +150,10 @@ namespace {
 
     NETWORK_MANAGER networkManager;
 
-    // Every worker thread will have its own memory manager.
     thread_local MEMORY_MANAGER memory_manager;
 
     constexpr ULONG SHUTDOWN_KEY  = 0x13;
+    constexpr ULONG RETURN_CONTEXT_KEY = 0x14;
 
 }
 
@@ -161,25 +162,22 @@ PLAYER_CONNECTION_CONTEXT* borrowContext() {
 }
 
 void proccessPacket(PLAYER_CONNECTION_CONTEXT* context, DWORD bytesRead) {
-
     std::unique_ptr<ReadPacketBuffer> packetBuffer = std::make_unique<ReadPacketBuffer>(context->buffer.buf, bytesRead);
 
     int packetSize = packetBuffer->readVarInt();
 
     if(bytesRead < packetSize) {
         printInfo("Need to perform more read to full ready this packet. Packet size: ",  packetSize , " Bytes Read: " , bytesRead);
-        //closeConnection(context); will handle this another time!
+        closeConnection(context); //will handle this another time!
         return;
     }
 
     invokePacket(packetBuffer.get(), context);
-
 }
 
-bool sendDataToConnection(WritePacketBuffer* buffer, PLAYER_CONNECTION_CONTEXT* connection_context) {
-    printInfo("Thread " , std::this_thread::get_id(), " sending data connection");
+bool sendDataToConnection(PLAYER_CONNECTION_CONTEXT* connection_context) {
 
-    SecureZeroMemory(&connection_context->overlapped, sizeof(OVERLAPPED));
+    connection_context->overlapped = {};
 
     int result = WSASend(connection_context->connectionInfo.playerSocket,
                          &connection_context->buffer,
@@ -199,10 +197,9 @@ bool sendDataToConnection(WritePacketBuffer* buffer, PLAYER_CONNECTION_CONTEXT* 
 
 void readPacket(PLAYER_CONNECTION_CONTEXT* context) {
 
-    SecureZeroMemory(&context->overlapped, sizeof(OVERLAPPED));
-    SecureZeroMemory(context->buffer.buf, context->buffer.len); // reset buffer
+    context->overlapped = {};
+    memset(context->buffer.buf, 0, context->buffer.len); // reset buffer
 
-    printInfo("Thread " , std::this_thread::get_id(), " readpacket io request sent");
 
     context->type = CONNECTION_CONTEXT_TYPE::RECEIVE;
 
@@ -245,7 +242,7 @@ bool acceptConnection()  noexcept {
         return false;
     }
 
-    SecureZeroMemory(&connection_context->overlapped, sizeof(OVERLAPPED));
+    connection_context->overlapped = {};
 
     HANDLE acceptPort;
 
@@ -328,7 +325,7 @@ void proccessIOCPCompletion(PLAYER_CONNECTION_CONTEXT* connectionContext, DWORD 
 
             break;
         case CONNECTION_CONTEXT_TYPE::SEND:
-            printInfo("sent has been completed");
+
             memory_manager.returnContext(connectionContext); // send contexts are disposable as they do nothing while read contexts are reusable in the same instance
             break;
 
@@ -355,7 +352,7 @@ void NETWORK_MANAGER_CONNECTION_WORKER_FUNCTION(const std::stop_token& token, un
                                                 completionPortsBatch.data(),
                                                 BATCH_SIZE,
                                                 &numOfCompletions,
-                                                INFINITE,
+                                                1,
                                                 FALSE);
 
         if(!result)
@@ -388,6 +385,7 @@ void NETWORK_MANAGER_CONNECTION_WORKER_FUNCTION(const std::stop_token& token, un
         }
 
         if (++operationCount % MEMORY_RESET_OPERATION_TRIGGER == 0) {
+            printInfo("reset??");
             memory_manager.reset();
             operationCount = 0;
         }
@@ -396,8 +394,8 @@ void NETWORK_MANAGER_CONNECTION_WORKER_FUNCTION(const std::stop_token& token, un
 
 void startWorkerThreads() {
 
-    unsigned int numThreads = std::thread::hardware_concurrency()/2;
-    printInfo("Worker Network Threads count: ", numThreads);
+    unsigned int numThreads = std::thread::hardware_concurrency()/4;
+
     networkManager.workers.reserve(numThreads);
 
     for (int i = 0; i < numThreads; i++) {

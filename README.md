@@ -6,7 +6,7 @@ A personal learning project to improve c++ expertise.
 This project is the Shared Library that plugins and the executable implement.
 
 C++ Minecraft Server:
-![img_3.png](img_3.png)
+![img_4.png](img_4.png)
 
 PaperSpigot:
 ![img_1.png](img_1.png)

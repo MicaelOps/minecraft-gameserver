@@ -5,6 +5,7 @@
 #include <map>
 #include <memory>
 #include <utility>
+#include <chrono>
 #include "server_connection.h"
 #include "packet_handler.h"
 #include "server_utils.h"
@@ -12,7 +13,8 @@
 #include "packets/PingPongPacket.h"
 #include "packets/UndefinedPacket.h"
 #include "packets/ServerQueryPacket.h"
-#include "the_great_freedom_pool.h"
+#include "packets/LoginStartPacket.h"
+#include "packets/EncryptionPacket.h"
 
 
 using PacketGenerator = std::unique_ptr<Packet>(*)();
@@ -31,6 +33,9 @@ void setupPacketFactory() {
 
     packetFactory[std::to_underlying(ConnectionState::STATUS) + 0] = [] () -> std::unique_ptr<Packet> { return std::make_unique<ServerQueryPacket>(); };
     packetFactory[std::to_underlying(ConnectionState::STATUS) + 1] = [] () -> std::unique_ptr<Packet> { return std::make_unique<PingPongPacket>(); };
+
+    packetFactory[std::to_underlying(ConnectionState::LOGIN) + 0] = [] () -> std::unique_ptr<Packet> { return std::make_unique<LoginStartPacket>(); };
+    packetFactory[std::to_underlying(ConnectionState::LOGIN) + 1] = [] () -> std::unique_ptr<Packet> { return std::make_unique<EncryptionPacket>(); };
 }
 
 void invokePacket(ReadPacketBuffer* packetBuffer, PLAYER_CONNECTION_CONTEXT* connectionContext) {
@@ -43,9 +48,8 @@ void invokePacket(ReadPacketBuffer* packetBuffer, PLAYER_CONNECTION_CONTEXT* con
     }
 
     std::unique_ptr<Packet> packet = packetFactory[std::to_underlying(connectionContext->connectionInfo.connectionState) + packetId]();
-    packet->readFromBuffer(packetBuffer);
-    packet->handlePacket(connectionContext);
 
+    packet->handlePacket(packetBuffer, connectionContext);
 
 }
 
@@ -58,7 +62,6 @@ void invokePacket(ReadPacketBuffer* packetBuffer, PLAYER_CONNECTION_CONTEXT* con
  * @param connectionContext
  */
 void sendPacket(Packet* packet, PLAYER_CONNECTION_CONTEXT* connectionContext) {
-
 
     PLAYER_CONNECTION_CONTEXT* sendcontext = borrowContext();
 
@@ -76,13 +79,13 @@ void sendPacket(Packet* packet, PLAYER_CONNECTION_CONTEXT* connectionContext) {
 
     packetBuffer->writeVarIntAtTheFront((int)packetBuffer->getSize());
 
+
     // dummy byte, for some reason minecraft drops one byte (which would completely mess up the way it was read) despite WSASend confirming the correct amount of bytes sent
     // The fact that I am writing this,  despite knowing this project wont be shared, it would give insights to the levels of frustrations.
     // But if you are not the future me and is someone who just happened to come across this file, this single line of code contains days of agony
     packetBuffer->writeByte(0);
 
-    // packet size should be the first varInt to be read
-    sendDataToConnection(packetBuffer.get(), sendcontext);
 
+    sendDataToConnection(sendcontext);
 
 }

@@ -17,11 +17,9 @@ public:
 
     virtual ~Packet() = default;
 
-    virtual void readFromBuffer(ReadPacketBuffer* packetBuffer);
-
     virtual void writeToBuffer(WritePacketBuffer* packetBuffer);
 
-    virtual void handlePacket(PLAYER_CONNECTION_CONTEXT* connectionContext);
+    virtual void handlePacket(ReadPacketBuffer* packetBuffer, PLAYER_CONNECTION_CONTEXT* connectionContext);
 };
 
 

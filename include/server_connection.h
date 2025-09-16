@@ -76,7 +76,7 @@ struct alignas(64) PLAYER_CONNECTION_CONTEXT {
 
 PLAYER_CONNECTION_CONTEXT* borrowContext();
 
-bool sendDataToConnection(WritePacketBuffer* buffer, PLAYER_CONNECTION_CONTEXT* playerSocket);
+bool sendDataToConnection(PLAYER_CONNECTION_CONTEXT* playerSocket);
 
 [[maybe_unused]] bool startNetworkManager(int maxPlayers) noexcept;
 

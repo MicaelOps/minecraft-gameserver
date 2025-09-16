@@ -2,8 +2,8 @@
 // Created by Micael Cossa on 26/08/2025.
 //
 
-#ifndef CORE_MINESERVER_PINGPONGPACKET_H
-#define CORE_MINESERVER_PINGPONGPACKET_H
+#ifndef CORE_MINESERVER_LOGINSTARTPACKET_H
+#define CORE_MINESERVER_LOGINSTARTPACKET_H
 
 #include "packet.h"
 /*
@@ -13,10 +13,10 @@
  * Server responds with a pong.
  */
 
-class PingPongPacket : public Packet {
+class LoginStartPacket : public Packet {
 
 private:
-    long long int ping = 0; // 64-bit integer
+    std::string name, disconnectReason;
 
 public:
 
@@ -25,8 +25,8 @@ public:
     void writeToBuffer(WritePacketBuffer* packetBuffer) override;
 
 
-    PingPongPacket() = default;
+    LoginStartPacket() = default;
 };
 
 
-#endif //CORE_MINESERVER_PINGPONGPACKET_H
+#endif //CORE_MINESERVER_LOGINSTARTPACKET_H

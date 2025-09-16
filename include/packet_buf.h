@@ -18,7 +18,9 @@ private:
 
 public:
 
-    explicit ReadPacketBuffer(char* buffer, int size) : buffer(buffer) , size(size) {}
+    explicit ReadPacketBuffer(char* buffer, int size) : buffer(buffer) , size(size) {
+
+    }
 
     char* getBuffer();
     int getSize();
@@ -28,6 +30,8 @@ public:
     std::string readString();
 
     short readShort();
+
+    std::string readUUID();
 };
 
 /**

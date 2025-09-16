@@ -11,19 +11,20 @@
 #define SEGMENT_BITS 0x7F
 
 
+constexpr int UUID_SIZE = 16;
+
 int ReadPacketBuffer::readVarInt() {
     int final_result = 0, shifts = 0;
 
     while(shifts < MAXIMUM_VARINT_BITS && position < size) {
 
-        final_result |= (buffer[position] & SEGMENT_BITS) << (shifts*7);
+        unsigned char currentByte = buffer[position];
 
+        final_result |= (currentByte & SEGMENT_BITS) << (shifts * 7);
         position++;
 
-        if ((buffer[position] & COMPLETION_BIT_MASK) != COMPLETION_BIT_MASK) break;
-
+        if ((currentByte & COMPLETION_BIT_MASK) == 0) break;
         shifts++;
-
     }
 
     return final_result;
@@ -61,8 +62,6 @@ long long int ReadPacketBuffer::readLong() {
 
 std::string ReadPacketBuffer::readString() {
 
-    std::ostringstream output;
-
     int stringLength = readVarInt();
 
     if(position + stringLength > size) {
@@ -70,11 +69,12 @@ std::string ReadPacketBuffer::readString() {
         return "";
     }
 
-    for(int i = 0; i < stringLength; i++) {
-        output << buffer[position];
-        position++;
-    }
-    return output.str();
+    std::string result;
+    result.reserve(stringLength);  // Pre-allocate to avoid reallocations
+    result.assign(buffer + position, buffer + position + stringLength);
+    position += stringLength;
+
+    return result;
 }
 
 short ReadPacketBuffer::readShort() {
@@ -94,6 +94,18 @@ short ReadPacketBuffer::readShort() {
 
     position+=length;
     return value;
+}
+
+std::string ReadPacketBuffer::readUUID() {
+    if(position + UUID_SIZE > size) {
+        printf("UUID Length bigger than buffer size , Position: %d Buffer Size: %d", position, size);
+        return "";
+    }
+
+    std::string result;
+    result.reserve(UUID_SIZE);  // Pre-allocate to avoid reallocations
+    result.assign(buffer + position, buffer + position + UUID_SIZE);
+    return result;
 }
 
 // Pre-allocate a buffer of at least 'n' bytes
