@@ -8,7 +8,7 @@
 #include <chrono>
 #include "packet_handler.h"
 
-#include "minecraft.h"
+#include "../minecraft_internal.h"
 
 #include "packets/HandshakePacket.h"
 #include "packets/PingPongPacket.h"
@@ -16,6 +16,7 @@
 #include "packets/ServerQueryPacket.h"
 #include "packets/LoginStartPacket.h"
 #include "packets/EncryptionPacket.h"
+#include "server_utils.h"
 
 
 namespace  {
@@ -91,7 +92,7 @@ void invokePacket(ReadPacketBuffer* packetBuffer, PLAYER_CONNECTION_CONTEXT* con
  */
 void sendPacket(Packet* packet, PLAYER_CONNECTION_CONTEXT* connectionContext) {
 
-    PLAYER_CONNECTION_CONTEXT* sendcontext = Minecraft::getNetworkManager().acquireContext();
+    PLAYER_CONNECTION_CONTEXT* sendcontext = getNetworkManager().acquireContext();
 
     if (!sendcontext) {
         printInfo("Failed to acquire context for sending");
@@ -113,6 +114,6 @@ void sendPacket(Packet* packet, PLAYER_CONNECTION_CONTEXT* connectionContext) {
     // But if you are not the future me and is someone who just happened to come across this file, this single line of code contains days of agony
     packetBuffer.writeByte(0);
 
-    Minecraft::getNetworkManager().sendDataToConnection(sendcontext);
+    getNetworkManager().sendDataToConnection(sendcontext);
 
 }

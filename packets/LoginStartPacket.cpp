@@ -4,6 +4,7 @@
 
 #include "packets/LoginStartPacket.h"
 #include "minecraft.h"
+#include "../minecraft_internal.h"
 #include "packet_handler.h"
 
 // LoginStartPacket acts as a Disconnect Packet and Login Start because they have the same Packet ID
@@ -14,7 +15,7 @@ void LoginStartPacket::handlePacket(ReadPacketBuffer* packetBuffer, PLAYER_CONNE
     if(Minecraft::playerExistsByName(name)) {
         disconnectReason = std::string("'").append(std::string(getColour(COLOUR::RED)).append("Player already exists'"));
         sendPacket(this, playerConnectionContext);
-        Minecraft::getNetworkManager().closeConnection(playerConnectionContext);
+        getNetworkManager().closeConnection(playerConnectionContext);
     }
 
 }

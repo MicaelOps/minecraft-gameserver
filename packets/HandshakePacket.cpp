@@ -5,6 +5,7 @@
 #include "packets/HandshakePacket.h"
 #include "minecraft.h"
 #include "packet_handler.h"
+#include "../minecraft_internal.h"
 
 #define PROTOCOL_VERSION_1_8 47
 
@@ -39,7 +40,7 @@ void HandshakePacket::handlePacket(ReadPacketBuffer* packetBuffer, PLAYER_CONNEC
     if(protocolVersion != PROTOCOL_VERSION_1_8) {
         response = "{ 'version': { 'name' : '1.8.8','protocol': 99 },'players': {'max': 30,'online': 1,'sample': [  {  'name': 'BADVERSIONLOL',   'id': '0541ed27-7595-4e6a-9101-6c07f879b7b5' } ] }, 'description': { 'text': 'Incompatible Versions'} ,'favicon': '', 'enforcesSecureChat': false}";
         sendPacket(this, connectionContext);
-        Minecraft::getNetworkManager().closeConnection(connectionContext);
+        getNetworkManager().closeConnection(connectionContext);
         return;
     }
 

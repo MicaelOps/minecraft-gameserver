@@ -1,9 +1,9 @@
 # minecraft-gameserver
 C++ Minecraft server
 
-A personal learning project to improve c++ expertise. 
+A personal learning project to improve my C++ expertise. 
 
-This project is the Shared Library that plugins and the executable implement.
+This project is the Shared Library that plugins and the minecraft-gui implement.
 
 C++ Minecraft Server:
 ![img_4.png](img_4.png)
@@ -14,18 +14,23 @@ PaperSpigot:
 Main Goals:
 
 - Write everything from scratch, no external libraries used
-- Multithreaded world system (possibly with different world generation algorithms in the future)
-- Plugin system for c++ plugins
+- Multithreading world system (possibly with different world generation algorithms in the future)
+- Write a decent API for c++ plugins
 - Learning design patterns applications, advanced networking 
-- Compete with original java interfaces (spigot,paperspigot,craftbukkit)! A safe haven for C++ OGs.
+- Compete with original java interfaces (spigot,paperspigot,craftbukkit)! A safe haven for the C++ OGs.
+- Learn! Learn! Learn!
 
-Future testing:
+Testing required:
 
-- Stress test
-- Vulnerability testing
+- Stress test (checking the resilience of the network system)
+- Vulnerability testing (buffer overflows and malicious inputs that could crash the server)
+- Network , Memory , CPU Profiling
 
 
 Logs:
+
+22/09/2025 
+- Writing the event system adding the PlayerLoginEvent and ServerListPingEvent equivalents, cleaning up unnecessary headers to improve the API quality
 
 16/09/2025
 - Started Login process, fixed the returnContext to return to the correct thread, changed the network architecture for the Minecraft API and made packets handling come from a preAllocated thread_local array to not waste heap allocations. More consistent 0ms pings
@@ -41,7 +46,7 @@ Logs:
 
 29/08/2025
 - Introduced the concept of Pooled resources, removed the logging on critical locations like readingPackets which were throttling the speed of the ping packet.
-- GG we now match Paperspigot ping latency.
+- GG we now match PaperSpigot ping latency.
 
 28/08/2025
 - Not moving any further with the minecraft server until the network system is optimised.

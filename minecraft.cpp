@@ -7,18 +7,19 @@
 #endif
 
 #include "include/minecraft.h"
-#include "server_connection.h"
+#include "minecraft_internal.h"
 #include "packet_handler.h"
-
 
 #include <algorithm>
 
 
 namespace {
-    NetworkManager* networkManager = nullptr;
-    SERVER_INFO* serverInfo = nullptr;
-    std::atomic<std::shared_ptr<std::unordered_set<Player>>>* players = nullptr;
+    std::unique_ptr<NetworkManager> networkManager = nullptr;
+    std::unique_ptr<SERVER_INFO> serverInfo = nullptr;
+    std::atomic<std::shared_ptr<std::unordered_set<Player>>> players;
     bool init = false;
+
+
 }
 
 
@@ -34,15 +35,13 @@ namespace Minecraft {
                 return true;
 
             // Initialize server info
-            serverInfo = new SERVER_INFO;
+            serverInfo = std::make_unique<SERVER_INFO>();
 
-            // Initialize players container
-            players = new std::atomic<std::shared_ptr<std::unordered_set<Player>>>(
-                    std::make_shared<std::unordered_set<Player>>()
-            );
+
+            players.store(std::make_shared<std::unordered_set<Player>>());
 
             // Initialize network manager with the packet handler
-            networkManager = new NetworkManager(invokePacket, setupPacketFactory);
+            networkManager = std::make_unique<NetworkManager>(invokePacket, setupPacketFactory);
             networkManager->startNetworkManager(serverInfo->maxPlayers);
 
             printInfo("Minecraft server components initialized successfully");
@@ -63,25 +62,12 @@ namespace Minecraft {
 
         if(networkManager) {
             networkManager->stopNetworkManager();
-
-            delete networkManager;
-            networkManager = nullptr;
+            networkManager.reset();
         }
 
-        delete serverInfo;
-        serverInfo = nullptr;
-
-        delete players;
-        players = nullptr;
+        serverInfo.reset();
 
         init = false;
-    }
-
-    NetworkManager& getNetworkManager() {
-        if (!networkManager) {
-            throw std::runtime_error("NetworkManager not initialized. Call initializeServer() first.");
-        }
-        return *networkManager;
     }
 
     SERVER_INFO getServerInformation() {
@@ -91,32 +77,37 @@ namespace Minecraft {
         return *serverInfo;
     }
 
-    const std::atomic<std::shared_ptr<std::unordered_set<Player>>>* getPlayers() {
-        if (!players) {
-            throw std::runtime_error("Players container not initialized. Call initializeServer() first.");
-        }
+    const std::atomic<std::shared_ptr<std::unordered_set<Player>>>& getPlayers() {
         return players;
     }
 
     bool playerExistsByName(const std::string_view& username) {
 
-        if(!players)
+        auto players_ref = players.load();
+
+        if(!players_ref)
             return false;
 
-        const auto& players_ref = *players->load();
-        return std::any_of(players_ref.begin(), players_ref.end(), [&username](const Player& player)  { return player.getName() == username;});
+        return std::any_of(players_ref->begin(), players_ref->end(), [&username](const Player& player)  { return player.getName() == username;});
     }
 
     bool playerExistsByUUID(const std::string_view& uuid) {
 
-        if(!players)
+        auto players_ref = players.load();
+
+        if(!players_ref)
             return false;
 
-        const auto& players_ref = *players->load();
-        return std::any_of(players_ref.begin(), players_ref.end(), [&uuid](const Player& player)  { return player.getName() == uuid;});
+        return std::any_of(players_ref->begin(), players_ref->end(), [&uuid](const Player& player)  { return player.getUUID() == uuid;});
     }
 }
 
+NetworkManager& getNetworkManager() {
+    if (!networkManager) {
+        throw std::runtime_error("NetworkManager not initialized. Call initializeServer() first.");
+    }
+    return *networkManager;
+}
 
 void SERVER_INFO::setMOTD(const std::string_view& newmotd) noexcept{
     motd = newmotd;

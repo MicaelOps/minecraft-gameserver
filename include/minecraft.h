@@ -3,7 +3,6 @@
 
 #include "player.h"
 #include "server_utils.h"
-#include "server_connection.h"
 
 #include <unordered_set>
 #include <memory>
@@ -23,17 +22,14 @@ struct SERVER_INFO {
 
     void setMOTD(const std::string_view& newmotd) noexcept;
 
-    [[nodiscard]] std::string getMOTD() const noexcept;
+    std::string getMOTD() const noexcept;
 };
-
 
 namespace Minecraft
 {
 
-
-    CORE_API NetworkManager& getNetworkManager();
     CORE_API SERVER_INFO getServerInformation();
-    CORE_API const std::atomic<std::shared_ptr<std::unordered_set<Player>>>* getPlayers();
+    CORE_API const std::atomic<std::shared_ptr<std::unordered_set<Player>>>& getPlayers();
 
     CORE_API bool startupServer();
     CORE_API void closeServer();
