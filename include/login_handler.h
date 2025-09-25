@@ -14,6 +14,7 @@
 #include <bcrypt.h>
 #include <vector>
 #include <iostream>
+#include <cstdint>
 
 #pragma comment(lib, "bcrypt.lib")
 #pragma comment(lib, "crypt32.lib")

@@ -2,14 +2,13 @@
 // Created by Micael Cossa on 30/08/2025.
 //
 
-
 #include "server_connection.h"
+#include "server_utils.h"
 #include <thread>
 
 #include <memory_resource>
 #include <utility>
 #include <chrono>
-#include "server_utils.h"
 
 
 struct MEMORY_MANAGER {
@@ -357,6 +356,7 @@ void NETWORK_MANAGER_CONNECTION_WORKER_FUNCTION(const std::stop_token& token, Ne
 
             if (completion.lpOverlapped == nullptr) {
                 if (completion.lpCompletionKey == SHUTDOWN_KEY) {
+                    printInfo("Network worker", std::this_thread::get_id(), " is shutting down...");
                     return;
                 }
                 continue;
@@ -509,21 +509,23 @@ void NetworkManager::closeConnection(PLAYER_CONNECTION_CONTEXT* playerConnection
 
 void NetworkManager::stopNetworkManager() noexcept {
 
-    // Send a signal to the CompletionThread that it should not process any more connections
-    PostQueuedCompletionStatus(listenPort, 0, SHUTDOWN_KEY, nullptr);
+    printInfo("Waiting to clear network workers...");
+
+    for (auto& worker : workers) {
+        // Send a signal to the CompletionThread that it should not process any more connections
+        PostQueuedCompletionStatus(listenPort, 0, SHUTDOWN_KEY, nullptr);
+        std::this_thread::sleep_for(std::chrono::milliseconds(500));
+    }
 
     // Close every SOCKET Connection
     clientConnections.for_each([this](const SOCKET socket) {
         closeSocketConnection(socket);
     });
 
-    printInfo("Waiting to clear network worker...");
-
-    // Wait for all the connections to close
-    std::this_thread::sleep_for(std::chrono::milliseconds(2000));
-
     // Close Completion I/O Port
     CloseHandle(listenPort);
+
+    workers.clear();
 
     WSACleanup();
 }

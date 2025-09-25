@@ -3,6 +3,7 @@
 
 #include "player.h"
 #include "server_utils.h"
+#include "events_handler.h"
 
 #include <unordered_set>
 #include <memory>
@@ -29,6 +30,7 @@ namespace Minecraft
 {
 
     CORE_API SERVER_INFO getServerInformation();
+    CORE_API EventHandler& getEventHandler();
     CORE_API const std::atomic<std::shared_ptr<std::unordered_set<Player>>>& getPlayers();
 
     CORE_API bool startupServer();

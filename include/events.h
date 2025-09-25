@@ -1,0 +1,16 @@
+//
+// Created by Micael Cossa on 24/09/2025.
+//
+
+#ifndef CORE_MINESERVER_EVENTS_H
+#define CORE_MINESERVER_EVENTS_H
+
+
+#define EVENT_HIGH_PRIORITY 0
+#define EVENT_MEDIUM_PRIORITY 15
+#define EVENT_LOW_PRIORITY 30
+
+#define SERVER_LIST_PING_EVENT 1
+
+
+#endif //CORE_MINESERVER_EVENTS_H

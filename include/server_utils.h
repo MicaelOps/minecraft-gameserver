@@ -5,11 +5,12 @@
 #ifndef MINECRAFTSERVER_SERVER_UTILS_H
 #define MINECRAFTSERVER_SERVER_UTILS_H
 
-#include <windows.h>
 #include <iostream>
-#include <array>
 #include <mutex>
-static std::mutex logMutex;
+#include <array>
+#include <string_view>
+
+
 
 enum class COLOUR : unsigned int {
     BLACK,
@@ -47,50 +48,20 @@ enum class COLOUR : unsigned int {
     RESET,
     COUNT
 };
-constexpr std::array<std::string_view, static_cast<size_t>(COLOUR::COUNT)> colourCodes = {
-        "§0", // BLACK
-        "§1", // DARK_BLUE
-        "§2", // DARK_GREEN
-        "§3", // DARK_AQUA
-        "§4", // DARK_RED
-        "§5", // DARK_PURPLE
-        "§6", // GOLD
-        "§7", // GRAY
-        "§8", // DARK_GRAY
-        "§9", // BLUE
-        "§a", // GREEN
-        "§b", // AQUA
-        "§c", // RED
-        "§d", // LIGHT_PURPLE
-        "§e", // YELLOW
-        "§f", // WHITE
-        "§g", // MINECOIN_GOLD
-        "§h", // MATERIAL_QUARTZ
-        "§i", // MATERIAL_IRON
-        "§j", // MATERIAL_NETHERITE
-        "§m", // MATERIAL_REDSTONE
-        "§n", // MATERIAL_COPPER
-        "§p", // MATERIAL_GOLD
-        "§q", // MATERIAL_EMERALD
-        "§s", // MATERIAL_DIAMOND
-        "§t", // MATERIAL_LAPIS
-        "§u"  // MATERIAL_AMETHYST
-        "§k"  // OBFUSCATED
-        "§l"  // BOLD
-        "§m"  // STRIKETHROUGH
-        "§n"  // UNDERLINE
-        "§o"  // ITALIC
-        "§r"  // RESET
+
+inline constexpr std::array<std::string_view, std::to_underlying(COLOUR::COUNT)> colourCodes = {
+        "§0","§1","§2","§3","§4","§5","§6","§7","§8","§9",
+        "§a","§b","§c","§d","§e","§f","§g","§h","§i","§j",
+        "§m","§n","§p","§q","§s","§t","§u","§k","§l","§m",
+        "§n","§o","§r"
 };
-constexpr std::string_view getColour(const COLOUR colour) {
+inline constexpr std::string_view getColour(COLOUR colour) {
 
-    auto colourIndex = static_cast<unsigned int>(colour);
-
-    if(colourIndex >= colourCodes.size())
-        return "";
-
-    return colourCodes[colourIndex];
+    auto index = std::to_underlying(colour);
+    return (index < std::size(colourCodes)) ? colourCodes[index] : "";
 }
+
+void printTime();
 
 template<typename T>
 void print(T value) {
@@ -107,15 +78,12 @@ void print(T first, Args... rest) {
 // Info logger
 template<typename... Args>
 void printInfo(Args... args) {
-    SYSTEMTIME localTime;
-    GetLocalTime(&localTime);
-    std::lock_guard<std::mutex> lock(logMutex); // lock while printing
-    std::cout << "["
-              << localTime.wHour << ":"
-              << localTime.wMinute << ":"
-              << localTime.wSecond
-              << "] [INFO] ";
+    static std::mutex logMutex;
+    std::lock_guard<std::mutex> lock(logMutex);
+
+    printTime();
     print(args...);
     std::cout << "\n"; // only one newline
 }
+
 #endif //MINECRAFTSERVER_SERVER_UTILS_H

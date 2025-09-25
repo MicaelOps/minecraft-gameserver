@@ -29,6 +29,9 @@ Testing required:
 
 Logs:
 
+25/09/2025
+- Event system implemented for the plugins with features like priority and cancellation.
+
 22/09/2025 
 - Writing the event system adding the PlayerLoginEvent and ServerListPingEvent equivalents, cleaning up unnecessary headers to improve the API quality
 
