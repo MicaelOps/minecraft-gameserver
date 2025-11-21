@@ -32,7 +32,7 @@ Logs: (My afterthoughts)
 21/11/2025
 - Uuugh, neglected my project because of my need-urgent-rent-money admin job. 80% of data-entry jobs could have been automated if people created a local API or some sort of report to scrape, I would instantly become the King of Backlog Cleaning after a few scripts, for now im just the Excel Wizard.
 - Anyway, created another Github project for my JSON reader that I will add to this project, so no logs here.
-- As I was doing the JSON reader, I wondered, if its possible to rewrite the Network system  in a CPU friendly way (SIMD blablabala) to increase performance? Needs to have a firm understanding.
+- As I was doing the JSON reader, I wondered, if its possible to rewrite the Network system  in a CPU friendly way (SIMD blablabala) to increase performance? Everytime i try to write from scratch i get shut down by these chatbot AIs saying STD methods ARE HIGHLY OPTIMISED BECAUSE THEY MATCH CPU ISA AND YOU SHOULD USE THEM. Enough of that time to add depth to our programming. One day we will beat these STD functions.
 
 25/09/2025
 - Event system implemented for the plugins with features like priority and cancellation.
