@@ -10,14 +10,16 @@
 #include "minecraft_internal.h"
 #include "packet_handler.h"
 #include <algorithm>
-#include "events.h"
+
 
 
 namespace {
+
     NetworkManager networkManager(invokePacket, setupPacketFactory);
     SERVER_INFO serverInfo;
-    std::atomic<std::shared_ptr<std::unordered_set<Player>>> players;
     EventHandler eventHandler;
+
+    std::atomic<std::shared_ptr<std::unordered_set<Player>>> players;
 
     bool init = false;
 }

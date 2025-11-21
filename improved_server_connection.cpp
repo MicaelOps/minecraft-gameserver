@@ -324,14 +324,14 @@ void proccessIOCPCompletion(NetworkManager* networkManager, PLAYER_CONNECTION_CO
     }
 
 }
-void NETWORK_MANAGER_CONNECTION_WORKER_FUNCTION(const std::stop_token& token, NetworkManager* networkManager, unsigned int threadId) {
+void NETWORK_MANAGER_CONNECTION_WORKER_FUNCTION(const std::stop_token& token, NetworkManager* networkManager) {
 
     constexpr unsigned MEMORY_RESET_OPERATION_TRIGGER = 1000;
     unsigned int operationCount = 0;
     memory_manager.init(); // pre-allocate the contiguous pool
     networkManager->loadIocpWorkerThreadEventHandler(); // setup packetfactory for the worker thread
 
-    while(true) {
+    while(!token.stop_requested()) {
 
         constexpr size_t BATCH_SIZE = 16;
         ULONG numOfCompletions = 0;
@@ -396,7 +396,7 @@ void NetworkManager::startWorkerThreads() {
     workers.reserve(numThreads);
 
     for (int i = 0; i < numThreads; i++) {
-        workers.emplace_back(NETWORK_MANAGER_CONNECTION_WORKER_FUNCTION, this, i);
+        workers.emplace_back(NETWORK_MANAGER_CONNECTION_WORKER_FUNCTION, this);
     }
 }
 bool NetworkManager::startNetworkManager(int maxPlayers) noexcept {
@@ -513,6 +513,7 @@ void NetworkManager::stopNetworkManager() noexcept {
 
     for (auto& worker : workers) {
         // Send a signal to the CompletionThread that it should not process any more connections
+        worker.request_stop();
         PostQueuedCompletionStatus(listenPort, 0, SHUTDOWN_KEY, nullptr);
         std::this_thread::sleep_for(std::chrono::milliseconds(500));
     }
