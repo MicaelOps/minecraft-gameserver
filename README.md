@@ -29,6 +29,9 @@ Testing required:
 
 Logs: (My afterthoughts)
 
+16/06/2026
+- This project will be rewritten, I got my first software engineering job and acquired a laptop just for Linux. There are alot of new things I am learning about concurrency, c++ , networking, which make this whole thing look like butt.
+  
 21/11/2025
 - Uuugh, neglected my project because of my need-urgent-rent-money admin job. 80% of data-entry jobs could have been automated if people created a local API or some sort of report to scrape, I would instantly become the King of Backlog Cleaning after a few scripts, for now im just the Excel Wizard.
 - Anyway, created another Github project for my JSON reader that I will add to this project, so no logs here.
