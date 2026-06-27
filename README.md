@@ -1,5 +1,8 @@
 # minecraft-gameserver
-C++ Minecraft server
+C++ Minecraft server NO LONGER IN DEVELOPMENT
+
+INFO: DUE TO ME GETTING MY FIRST ENGINEERING JOB AND A LINUX LAPTOP, I HAVE DECIDED TO STOP DEVELOPING THIS ONE.
+      SEE MY MINECRAFT-REBORN WHICH IS GOING TO BE BETTER THAN WHATEVER THIS CRAP WAS.
 
 A personal learning project to improve my C++ expertise. 
 
